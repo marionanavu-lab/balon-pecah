@@ -3,32 +3,47 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<title>Balon Pecah TV</title>
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Bungee&family=Nunito:wght@400;700;800&display=swap" rel="stylesheet">
+<title>Balon Pecah</title>
 <link rel="stylesheet" href="common.css">
 <style>
-/* Layout: video dari kamera HP sebagai latar penuh, kanvas game transparan di atasnya, HUD di atas */
+/* Layout: video kamera sebagai latar penuh, kanvas game transparan di atasnya, layar menu sebagai kartu di tengah */
 body{overflow:hidden;user-select:none;-webkit-user-select:none}
 #remote{position:fixed;inset:0;width:100%;height:100%;object-fit:cover;transform:scaleX(-1);background:var(--night)}
 #stage{position:fixed;inset:0;width:100%;height:100%;display:block}
 
+/* HUD saat bermain: skor kiri, nyawa + waktu tengah, kalori kanan */
 .hud{position:fixed;left:0;right:0;top:0;display:grid;grid-template-columns:1fr auto 1fr;gap:16px;align-items:start;
   padding:calc(16px + env(safe-area-inset-top,0px)) max(24px,env(safe-area-inset-right,0px)) 0 max(24px,env(safe-area-inset-left,0px));pointer-events:none}
 .chip{background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:10px 18px}
 .val{font-family:var(--display);font-size:clamp(22px,3.4vw,40px);line-height:1.15;font-variant-numeric:tabular-nums}
 .val small{font-size:.55em;color:var(--muted)}
-.bar{height:8px;border-radius:4px;background:rgba(255,255,255,.12);margin-top:8px;overflow:hidden;min-width:160px}
-.bar i{display:block;height:100%;width:0;background:var(--mint);transition:width .2s}
 .left{justify-self:start}
-.timer{justify-self:center;text-align:center;min-width:130px}
-.timer .val{font-size:clamp(40px,6vw,72px)}
-.timer.low .val{color:var(--coral);animation:pulse 1s infinite}
+.mid{justify-self:center;text-align:center}
 .kcal{justify-self:end;text-align:right}
 .kcal .val{color:var(--sun)}
-.met{font-size:14px;color:var(--muted);margin-top:4px;font-weight:700}
-@keyframes pulse{50%{transform:scale(1.08)}}
+.met{font-size:14px;color:var(--muted);margin-top:4px;font-weight:700;font-variant-numeric:tabular-nums}
+.lives{display:flex;gap:8px;justify-content:center}
+.heart{width:clamp(28px,3vw,42px);height:auto;fill:var(--coral);filter:drop-shadow(0 2px 4px rgba(0,0,0,.5));transition:fill .2s,transform .2s}
+.heart.lost{fill:rgba(255,255,255,.18);transform:scale(.85)}
+.lives.hit{animation:shakeX .45s}
+.heart.new{animation:heartGain .6s}
+@keyframes heartGain{0%{transform:scale(.3)}60%{transform:scale(1.35)}100%{transform:scale(1)}}
+@keyframes shakeX{20%,60%{transform:translateX(-6px)}40%,80%{transform:translateX(6px)}}
+/* Sarung tangan yang disimpan: kanan bawah saat bermain */
+.inventory{position:fixed;right:max(24px,env(safe-area-inset-right,0px));bottom:calc(24px + env(safe-area-inset-bottom,0px));
+  display:flex;align-items:center;gap:12px;background:var(--panel);border:1px solid var(--line);border-radius:18px;padding:10px 16px 10px 10px;pointer-events:none}
+.inv-icon{width:52px;height:52px;border-radius:14px;display:grid;place-items:center;background:rgba(61,184,255,.18)}
+.inv-icon svg{width:34px;height:34px;fill:var(--sky)}
+.inv-text{display:flex;flex-direction:column;gap:2px}
+.inv-text b{font-family:var(--display);font-weight:400;font-size:22px;line-height:1}
+.inv-text span{font-size:13px;font-weight:700;color:var(--muted)}
+.inventory.on{border-color:var(--mint);box-shadow:0 0 18px rgba(46,230,166,.45)}
+.inventory.on .inv-icon{background:rgba(46,230,166,.2)}
+.inventory.on .inv-icon svg{fill:var(--mint)}
+.inventory.on .inv-text span{color:var(--mint)}
+.inventory.pop{animation:invPop .45s}
+@keyframes invPop{40%{transform:scale(1.12)}}
+.playing .conn{display:none}
 .hint{position:fixed;left:50%;bottom:calc(24px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:var(--panel);
   border:1px solid var(--line);padding:12px 20px;border-radius:999px;font-weight:700;font-size:18px;max-width:calc(100% - 48px);text-align:center;pointer-events:none}
 .conn{position:fixed;right:max(24px,env(safe-area-inset-right,0px));bottom:calc(24px + env(safe-area-inset-bottom,0px));font-size:14px;font-weight:800;
@@ -39,6 +54,25 @@ body{overflow:hidden;user-select:none;-webkit-user-select:none}
   background:radial-gradient(ellipse at center,rgba(11,14,31,.5),rgba(11,14,31,.9))}
 #countdown{background:transparent;pointer-events:none}
 .big{font-family:var(--display);font-size:clamp(110px,22vw,220px);color:var(--sun);text-shadow:0 8px 0 rgba(0,0,0,.35)}
+button:focus,input:focus{outline:4px solid var(--sky);outline-offset:3px}
+
+/* Halaman awal: logo, judul besar, satu tombol; balon melayang di kanvas belakangnya */
+#startScreen{background:radial-gradient(ellipse at 50% 40%,rgba(27,33,80,.35),rgba(11,14,31,.75))}
+.start{display:flex;flex-direction:column;align-items:center;gap:22px;text-align:center;max-width:680px}
+.start-title{font-size:clamp(52px,9vw,112px)}
+.start .lead{font-size:clamp(15px,1.8vw,20px);max-width:36em}
+.start-btn{min-width:min(280px,80vw);font-size:28px;padding:18px 40px}
+
+/* Pilih mode */
+.tvcard{width:min(680px,100%)}
+.modes{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+.mode-card{display:flex;flex-direction:column;gap:8px;text-align:left;padding:20px;border-radius:18px;border:2px solid var(--sun);
+  background:rgba(255,194,61,.08);color:var(--text);font:inherit;cursor:pointer}
+.mode-card:disabled{border-color:var(--line);background:rgba(255,255,255,.03);opacity:.55;cursor:not-allowed}
+.mode-name{font-family:var(--display);font-size:24px;line-height:1.1}
+.mode-desc{font-size:14px;color:var(--muted);line-height:1.45}
+.mode-tagline{font-size:12px;font-weight:800;letter-spacing:.1em;text-transform:uppercase;color:var(--sun)}
+.mode-card:disabled .mode-tagline{color:var(--muted)}
 
 /* Layar pairing: kode besar + QR berdampingan */
 .pair{width:min(980px,100%);display:grid;grid-template-columns:1.3fr 1fr;gap:28px;align-items:center;background:var(--panel);
@@ -51,33 +85,194 @@ body{overflow:hidden;user-select:none;-webkit-user-select:none}
 .qrbox{background:#fff;border-radius:20px;padding:18px;justify-self:center;display:grid;place-items:center}
 .qrbox img,.qrbox canvas{display:block;width:clamp(180px,24vw,280px)!important;height:auto!important}
 .pair-left{display:flex;flex-direction:column;gap:16px;min-width:0}
+.pair-left .btn{padding:10px 18px;font-size:15px}
+.mode-tag{align-self:flex-start;font-weight:800;font-size:15px;color:var(--mint);background:rgba(46,230,166,.12);border-radius:999px;padding:6px 14px}
 
-/* Menu TV: dikendalikan remote, jadi pakai tombol besar dan stepper */
-.tvcard{width:min(620px,100%)}
+/* Pengaturan sebelum main */
 .stepper{display:flex;align-items:center;gap:12px}
 .stepper button{width:60px;height:60px;border-radius:14px;border:1px solid var(--line);background:rgba(255,255,255,.06);color:var(--text);
   font:800 30px var(--body);cursor:pointer}
-.stepper output{font-family:var(--display);font-size:30px;min-width:120px;text-align:center}
-.settings{display:grid;grid-template-columns:1fr 1fr;gap:20px}
-.settings .wide{grid-column:1/-1}
-.tvcard button:focus,.pair button:focus{outline:4px solid var(--sky);outline-offset:3px}
+.stepper output{font-family:var(--display);font-size:30px;min-width:100px;text-align:center}
+.settings{display:grid;grid-template-columns:1fr 1.4fr 1fr;gap:20px;align-items:end}
 .phone-ok{display:flex;align-items:center;gap:10px;font-weight:800;color:var(--mint)}
 .phone-ok::before{content:"";width:12px;height:12px;border-radius:50%;background:var(--mint);box-shadow:0 0 12px var(--mint)}
-.stats{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}
-.stat{background:rgba(255,255,255,.05);border-radius:14px;padding:14px}
-.stat .val{font-size:26px}
-.verdict{font-family:var(--display);font-size:30px;line-height:1.2}
-.verdict.win{color:var(--mint)} .verdict.lose{color:var(--coral)}
-.note{font-size:14px}
 .btnrow{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+
+/* Kalibrasi posisi: siluet digambar di kanvas, teks di atas, progres di bawah */
+.position{position:fixed;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:space-between;pointer-events:none;
+  padding:calc(16px + env(safe-area-inset-top,0px)) max(16px,env(safe-area-inset-right,0px)) calc(20px + env(safe-area-inset-bottom,0px)) max(16px,env(safe-area-inset-left,0px))}
+.pos-top,.pos-bottom{display:flex;flex-direction:column;align-items:center;gap:8px;text-align:center}
+.pos-title{font-family:var(--display);font-size:clamp(20px,3vw,36px);text-shadow:0 2px 8px rgba(0,0,0,.8)}
+.pos-sub{font-weight:800;font-size:clamp(14px,1.8vw,22px);background:var(--panel);border:1px solid var(--line);padding:8px 18px;border-radius:999px}
+.pos-sub.ok{color:var(--mint);border-color:var(--mint)}
+.pos-bottom{width:min(440px,80%)}
+.pos-bar{width:100%;height:10px;border-radius:5px;background:rgba(255,255,255,.2);overflow:hidden}
+.pos-bar i{display:block;height:100%;width:0;background:var(--mint)}
+.pos-bottom .btn{pointer-events:auto;font-size:14px;padding:8px 18px}
+
+/* Jeda saat pemain keluar dari kamera */
+.pause{position:fixed;inset:0;display:grid;place-items:center;pointer-events:none;background:rgba(11,14,31,.55)}
+.pause-box{display:flex;flex-direction:column;align-items:center;gap:10px;text-align:center;background:var(--panel);border:1px solid var(--line);
+  border-radius:24px;padding:24px 36px;max-width:calc(100% - 32px)}
+.pause-title{font-family:var(--display);font-size:clamp(36px,6vw,72px);color:var(--sun);line-height:1}
+.pause-sub{font-weight:800;font-size:clamp(14px,1.8vw,22px)}
+.pause-sub.ok{color:var(--mint)}
+
+/* Hasil + papan skor */
+.result-card{width:min(1000px,100%)}
+.result-grid{display:grid;grid-template-columns:1.25fr 1fr;gap:18px;align-items:start}
+.stats{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
+.stat{background:rgba(255,255,255,.05);border-radius:14px;padding:12px 14px;min-width:0}
+.stat .val{font-size:24px}
+.verdict{font-family:var(--display);font-size:30px;line-height:1.2}
+.verdict.win{color:var(--sun)}
+.save-row{display:flex;flex-direction:column;gap:6px;margin-top:12px}
+.save-row .row{flex-wrap:nowrap}
+.save-row input{flex:1;min-width:0}
+.save-row .btn{font-size:16px;padding:10px 18px}
+.board{display:flex;flex-direction:column;gap:8px;min-width:0}
+.board-list{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:4px;font-variant-numeric:tabular-nums}
+.board-list li{display:grid;grid-template-columns:1.8em minmax(0,1fr) auto 5.5em;gap:10px;align-items:center;padding:6px 10px;border-radius:10px;
+  background:rgba(255,255,255,.04);font-weight:700}
+.board-list li.me{background:rgba(255,194,61,.16);color:var(--sun)}
+.board-list .rk{font-family:var(--display);color:var(--muted)}
+.board-list .nm{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.board-list .sc{font-family:var(--display)}
+.board-list .kc{color:var(--muted);font-size:.85em;text-align:right}
+.board-list li.board-empty{display:block;color:var(--muted);background:none;padding:6px 0}
+.board-card{width:min(560px,100%)}
+
+/* Logo di kartu: tombol ke halaman Tentang */
+.brand-btn{display:flex;background:none;border:0;padding:4px;margin:-4px;border-radius:10px;cursor:pointer;flex:none}
+.brand-btn:hover .brand{opacity:1}
+
+/* Halaman Tentang: info aplikasi di kiri, dukungan (Saweria + QR) di kanan */
+.about-card{width:min(920px,100%)}
+.about-grid{display:grid;grid-template-columns:1.15fr 1fr;gap:24px;align-items:start}
+.about-main{display:flex;flex-direction:column;gap:14px;min-width:0}
+.about-logo{width:min(200px,50%);height:auto;opacity:.95}
+.about-title{display:flex;align-items:baseline;flex-wrap:wrap;gap:6px 14px}
+.version{font-weight:800;font-size:14px;color:var(--muted);background:rgba(255,255,255,.06);border-radius:999px;padding:4px 12px}
+.support{display:flex;flex-direction:column;gap:12px;background:rgba(255,194,61,.07);border:1px solid rgba(255,194,61,.35);border-radius:18px;padding:18px}
+.support-row{display:flex;gap:16px;align-items:center}
+.support-text{display:flex;flex-direction:column;gap:10px;min-width:0;flex:1}
+.support-text p{margin:0;color:var(--muted);line-height:1.45;font-size:15px}
+.support .qrbox{padding:10px;border-radius:14px}
+.support .qrbox img,.support .qrbox canvas{width:clamp(110px,13vw,160px)!important}
+.qr-caption{font-size:12px;color:var(--muted);text-align:center;font-weight:700;margin-top:4px}
+.about-actions{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.btn.small{font-size:15px;padding:10px 14px}
+a.btn{display:block}
+a:focus{outline:4px solid var(--sky);outline-offset:3px}
+.ig-icon{width:1.2em;height:1.2em;flex:none}
+.btn.ig{display:flex;align-items:center;justify-content:center;gap:8px;color:#fff;box-shadow:0 5px 0 #8a2a6b;
+  background:linear-gradient(90deg,#f58529,#dd2a7b 45%,#8134af)}
+.btn.ig:active{box-shadow:0 2px 0 #8a2a6b}
+.ig-link{display:inline-flex;align-items:center;gap:8px;color:var(--muted);font-weight:800;font-size:15px;text-decoration:none;padding:6px 10px;border-radius:10px}
+.ig-link b{color:var(--text)}
+.ig-link:hover b{color:#f58fbd}
+.mail{user-select:text;-webkit-user-select:text;color:var(--text);font-weight:700}
+
 @media (max-width:760px){
   .pair{grid-template-columns:1fr;padding:24px}
-  .settings,.btnrow{grid-template-columns:1fr}
+  .settings,.btnrow,.modes,.result-grid,.about-grid{grid-template-columns:1fr}
   .stats{grid-template-columns:1fr 1fr}
-  .hud{grid-template-columns:1fr 1fr}
-  .timer{grid-column:1/-1;grid-row:1}
 }
-@media (prefers-reduced-motion:reduce){.timer.low .val{animation:none}}
+/* HP mendatar (layar pendek): semua layar muat tanpa scroll, HUD tanpa panel supaya tidak menutupi balon */
+@media (max-height:520px){
+  .screen{padding:10px max(12px,env(safe-area-inset-right,0px)) 10px max(12px,env(safe-area-inset-left,0px))}
+  h1{font-size:24px}
+  .card{padding:14px 18px;gap:10px;border-radius:18px}
+  .tvcard{width:min(760px,100%)}
+  .tvcard .lead{font-size:13px;line-height:1.35}
+  .phone-ok{font-size:13px}
+  .btn{font-size:16px;padding:10px;box-shadow:0 4px 0 #b8363a}
+  .btn.ghost{font-size:13px;padding:8px}
+  .status{font-size:12px}
+  .brand{height:22px}
+  .big{font-size:min(120px,40vh)}
+
+  .start{gap:10px}
+  .start-title{font-size:44px}
+  .start .lead{font-size:13px}
+  .start-btn{font-size:20px;padding:12px 32px}
+
+  .modes{grid-template-columns:1fr 1fr;gap:10px}
+  .mode-card{padding:12px 14px;gap:4px;border-radius:14px}
+  .mode-name{font-size:18px}
+  .mode-desc{font-size:12px}
+  .mode-tagline{font-size:10px}
+
+  .settings{grid-template-columns:1fr 1.5fr 1.1fr;gap:12px}
+  .stepper{gap:6px}
+  .stepper button{width:38px;height:38px;font-size:22px;border-radius:10px}
+  .stepper output{font-size:20px;min-width:52px}
+  .seg{padding:8px 6px;min-width:0;font-size:13px}
+
+  .pair{grid-template-columns:1.5fr 1fr;gap:16px;padding:14px 18px;border-radius:18px}
+  .pair-left{gap:8px}
+  .code{font-size:44px}
+  .pair .steps{font-size:12.5px;line-height:1.45}
+  .url{font-size:11px;padding:4px 8px}
+  .mode-tag{font-size:12px;padding:4px 10px}
+  .qrbox{padding:8px;border-radius:12px}
+  .qrbox img,.qrbox canvas{width:min(150px,38vh)!important}
+  .pair-left .btn{font-size:12px;padding:7px 12px}
+
+  .result-grid{grid-template-columns:1.2fr 1fr;gap:12px}
+  .stats{grid-template-columns:repeat(3,1fr);gap:6px}
+  .result-card{gap:8px}
+  .stat{padding:5px 8px;border-radius:10px}
+  .stat .label{font-size:9px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .stat .val{font-size:16px}
+  .verdict{font-size:20px}
+  .save-row{margin-top:8px;gap:4px}
+  .save-row input{font-size:14px;padding:6px 10px}
+  .save-row .btn{font-size:13px;padding:6px 12px}
+  .board{gap:4px}
+  .board-list{gap:2px}
+  .board-list li{padding:1px 8px;font-size:12px;gap:8px;border-radius:6px}
+  .btnrow{grid-template-columns:1fr 1fr}
+
+  .about-grid{grid-template-columns:1.15fr 1fr;gap:14px}
+  .about-main{gap:8px}
+  .about-logo{width:110px}
+  .about-card .lead{font-size:12px;line-height:1.35}
+  .version{font-size:11px;padding:2px 8px}
+  .support{padding:10px 12px;gap:8px;border-radius:14px}
+  .support-row{gap:10px}
+  .support-text{gap:6px}
+  .support-text p{font-size:12px}
+  .support .qrbox{padding:6px;border-radius:10px}
+  .support .qrbox img,.support .qrbox canvas{width:min(96px,26vh)!important}
+  .qr-caption{font-size:10px}
+  .btn.small{font-size:12px;padding:7px 10px}
+  .about-actions{gap:6px}
+  .about-main .lead{display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}
+  .ig-link{font-size:12px;padding:2px 8px}
+
+  .hud{gap:8px;padding:calc(6px + env(safe-area-inset-top,0px)) max(12px,env(safe-area-inset-right,0px)) 0 max(12px,env(safe-area-inset-left,0px))}
+  .chip{background:none;border:0;padding:0;backdrop-filter:none;-webkit-backdrop-filter:none;
+    text-shadow:0 2px 6px rgba(0,0,0,.85),0 0 2px rgba(0,0,0,.9)}
+  .hud .label{font-size:9px;color:var(--text);opacity:.85}
+  .hud .val{font-size:20px}
+  .heart{width:22px}
+  .lives{gap:4px}
+  .met{font-size:10px;margin-top:0;color:var(--text);opacity:.85}
+  .hint{font-size:13px;padding:6px 12px;bottom:calc(8px + env(safe-area-inset-bottom,0px))}
+  .conn{display:none} /* sumber kamera sudah tertulis di menu */
+  .inventory{right:max(10px,env(safe-area-inset-right,0px));bottom:calc(8px + env(safe-area-inset-bottom,0px));padding:5px 10px 5px 5px;gap:8px;border-radius:12px}
+  .inv-icon{width:32px;height:32px;border-radius:9px}
+  .inv-icon svg{width:22px;height:22px}
+  .inv-text b{font-size:15px}
+  .inv-text span{font-size:10px}
+  .pos-sub{font-size:13px;padding:5px 12px}
+  .pause-box{padding:14px 22px;gap:6px;border-radius:16px}
+  .pause-title{font-size:36px}
+  .pause-sub{font-size:13px}
+  .pos-bar{height:6px}
+}
+@media (prefers-reduced-motion:reduce){.lives.hit,.heart.new,.inventory.pop{animation:none}}
 </style>
 </head>
 <body>
@@ -86,13 +281,13 @@ body{overflow:hidden;user-select:none;-webkit-user-select:none}
 
 <div class="hud" id="hud" hidden>
   <div class="chip left">
-    <div class="label">Skor / Target</div>
-    <div class="val"><span id="score">0</span> <small>/ <span id="target">30</span></small></div>
-    <div class="bar"><i id="progress"></i></div>
+    <div class="label">Skor</div>
+    <div class="val" id="score">0</div>
+    <div class="met" id="bestLine">Terbaik 0</div>
   </div>
-  <div class="chip timer" id="timerBox">
-    <div class="label">Waktu</div>
-    <div class="val" id="timer">60</div>
+  <div class="chip mid">
+    <div class="lives" id="lives" aria-label="Nyawa"></div>
+    <div class="met" id="clock">0:00</div>
   </div>
   <div class="chip kcal">
     <div class="label">Kalori</div>
@@ -101,82 +296,224 @@ body{overflow:hidden;user-select:none;-webkit-user-select:none}
   </div>
 </div>
 <div class="hint" id="hint" hidden></div>
+<div class="inventory" id="inventory" hidden>
+  <div class="inv-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 21v-6.3L4.2 10.9a1.6 1.6 0 0 1 2.5-2L8 10.3V4.6a1.5 1.5 0 0 1 3 0V10h.6V3.4a1.5 1.5 0 0 1 3 0V10h.6V4.4a1.5 1.5 0 0 1 3 0V10.6h.5V7.3a1.5 1.5 0 0 1 3 0v8.2c0 3-2.3 5.5-5.3 5.5H7z"/></svg></div>
+  <div class="inv-text"><b id="invCount">Sarung tangan ×1</b><span id="invHint">Tepuk tangan untuk memakai</span></div>
+</div>
 
-<!-- 1. Pairing dengan HP -->
-<section class="screen" id="pairScreen">
+<!-- 0. Halaman awal -->
+<section class="screen" id="startScreen">
+  <div class="start">
+    <h1 class="start-title">Balon <span>Pecah</span></h1>
+    <p class="lead">Pecahkan balon dengan seluruh badanmu. Gerak, pecah, bakar kalori.</p>
+    <button class="btn start-btn" id="startGameBtn" type="button">Mulai</button>
+    <a class="ig-link" href="https://www.instagram.com/sandy.mind/" target="_blank" rel="noopener"><svg class="ig-icon" viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="5" fill="none" stroke="currentColor" stroke-width="2"/><circle cx="12" cy="12" r="4" fill="none" stroke="currentColor" stroke-width="2"/><circle cx="17.3" cy="6.7" r="1.2" fill="currentColor"/></svg><span>Ikuti <b>@sandy.mind</b> di Instagram</span></a>
+  </div>
+</section>
+
+<!-- 1. Pilih mode -->
+<section class="screen" id="modeScreen" hidden>
+  <div class="card tvcard">
+    <div class="card-head"><h1>Pilih <span>mode</span></h1><button class="brand-btn" type="button" aria-label="Tentang aplikasi"><img class="brand" src="img/sandymind-white.png" alt="Sandy Mind"></button></div>
+    <div class="modes">
+      <button class="mode-card" id="freeModeBtn" type="button">
+        <span class="mode-tagline">3 nyawa</span>
+        <span class="mode-name">Mode Bebas</span>
+        <span class="mode-desc">Pecahkan balon dengan bagian badan mana pun. Kena bom, nyawa berkurang. Main sampai nyawa habis.</span>
+      </button>
+      <button class="mode-card" type="button" disabled>
+        <span class="mode-tagline">Segera hadir</span>
+        <span class="mode-name">Mode 2</span>
+        <span class="mode-desc">Mode berikutnya sedang disiapkan.</span>
+      </button>
+    </div>
+    <div class="btnrow">
+      <button class="btn ghost" id="boardBtn" type="button">10 skor tertinggi</button>
+      <button class="btn ghost" id="modeBackBtn" type="button">Kembali</button>
+    </div>
+  </div>
+</section>
+
+<!-- 2. Pairing dengan HP -->
+<section class="screen" id="pairScreen" hidden>
   <div class="pair">
     <div class="pair-left">
-      <h1>Balon <span>Pecah</span></h1>
-      <div>
+      <div class="card-head"><h1>Balon <span>Pecah</span></h1><button class="brand-btn" type="button" aria-label="Tentang aplikasi"><img class="brand" src="img/sandymind-white.png" alt="Sandy Mind"></button></div>
+      <div id="codeBlock">
         <div class="label">Kode TV</div>
         <div class="code" id="code">····</div>
       </div>
-      <ol class="steps">
+      <div class="mode-tag" id="localTag" hidden>Mode tanpa internet</div>
+      <ol class="steps" id="stepsOnline">
         <li>Sambungkan HP ke <b>WiFi yang sama</b> dengan TV.</li>
         <li><b>Scan QR</b> di samping dengan kamera HP, atau buka alamat di bawah lalu masukkan kodenya.</li>
         <li>Letakkan HP <b>mendatar</b> di bawah atau di atas TV, kamera menghadap kamu.</li>
       </ol>
+      <ol class="steps" id="stepsLocal" hidden>
+        <li>Sambungkan HP ke <b>WiFi yang sama</b> dengan TV. Internet tidak diperlukan.</li>
+        <li><b>Scan QR</b> di samping. Kalau HP menampilkan <b>"Koneksi tidak pribadi"</b>, pilih <b>Lanjutan → Lanjutkan</b>.</li>
+        <li>Izinkan kamera, tekan <b>Sambungkan ke TV</b>, lalu letakkan HP <b>mendatar</b> menghadap kamu.</li>
+      </ol>
       <div class="url" id="pairUrl">Menyiapkan…</div>
       <div class="status" id="pairStatus">Menghubungkan ke server pairing…</div>
+      <div class="row">
+        <button class="btn alt" id="selfBtn" type="button" hidden>Pakai kamera perangkat ini</button>
+        <button class="btn ghost" id="modeBtn" type="button" hidden>Pakai mode tanpa internet</button>
+        <button class="btn ghost" id="pairBackBtn" type="button">Kembali</button>
+      </div>
     </div>
     <div class="qrbox" id="qr" aria-label="QR code untuk membuka halaman kamera di HP"></div>
   </div>
 </section>
 
-<!-- 2. Pengaturan (sudah tersambung) -->
+<!-- 3. Pengaturan Mode Bebas -->
 <section class="screen" id="menu" hidden>
   <div class="card tvcard">
-    <div class="phone-ok">HP tersambung</div>
-    <h1>Siap <span>main?</span></h1>
-    <p class="lead">Mundur sampai seluruh badan terlihat di layar. Sentuh balon dengan tangan, hindari bom.</p>
+    <div class="card-head"><div class="phone-ok" id="sourceLabel">HP tersambung</div><button class="brand-btn" type="button" aria-label="Tentang aplikasi"><img class="brand" src="img/sandymind-white.png" alt="Sandy Mind"></button></div>
+    <h1>Mode <span>Bebas</span></h1>
+    <p class="lead">Seluruh badan bisa memecahkan balon. Balon emas +3. Kena bom, satu nyawa hilang. Sebelum mulai, berdirilah pas di dalam garis siluet.</p>
     <div class="settings">
       <div class="field"><span class="label">Berat badan (kg)</span>
-        <div class="stepper"><button type="button" data-step="weight:-1" aria-label="Kurangi berat">−</button><output id="weightOut">60</output><button type="button" data-step="weight:1" aria-label="Tambah berat">+</button></div>
+        <div class="stepper"><button type="button" data-step="-1" aria-label="Kurangi berat">−</button><output id="weightOut">60</output><button type="button" data-step="1" aria-label="Tambah berat">+</button></div>
       </div>
-      <div class="field"><span class="label">Target skor</span>
-        <div class="stepper"><button type="button" data-step="target:-5" aria-label="Kurangi target">−</button><output id="targetOut">30</output><button type="button" data-step="target:5" aria-label="Tambah target">+</button></div>
+      <div class="field"><span class="label">Posisi berdiri</span>
+        <div class="row" id="framing">
+          <button class="seg" type="button" data-framing="full" aria-pressed="true">Seluruh badan</button>
+          <button class="seg" type="button" data-framing="half" aria-pressed="false">Setengah badan</button>
+        </div>
       </div>
-      <div class="field wide"><span class="label">Durasi</span>
-        <div class="row" id="durations">
-          <button class="seg" type="button" data-sec="30" aria-pressed="false">30 dtk</button>
-          <button class="seg" type="button" data-sec="60" aria-pressed="true">60 dtk</button>
-          <button class="seg" type="button" data-sec="90" aria-pressed="false">90 dtk</button>
+      <div class="field"><span class="label">Garis badan</span>
+        <div class="row" id="bodyLines">
+          <button class="seg" type="button" data-lines="off" aria-pressed="true">Sembunyi</button>
+          <button class="seg" type="button" data-lines="on" aria-pressed="false">Tampil</button>
         </div>
       </div>
     </div>
-    <button class="btn" id="startBtn" type="button">Mulai</button>
-    <div class="status">Tombol Mulai juga bisa ditekan dari HP.</div>
+    <button class="btn" id="playBtn" type="button">Mulai main</button>
+    <div class="btnrow">
+      <button class="btn ghost" id="sourceBtn" type="button" hidden>Pakai HP sebagai kamera</button>
+      <button class="btn ghost" id="menuBackBtn" type="button">Kembali</button>
+    </div>
+    <div class="status" id="menuHint">Tombol Mulai juga bisa ditekan dari HP.</div>
   </div>
 </section>
 
+<!-- 4. Kalibrasi posisi -->
+<div class="position" id="positionUi" hidden>
+  <div class="pos-top">
+    <div class="pos-title" id="posTitle">Berdiri di dalam garis</div>
+    <div class="pos-sub" id="posHint">Badan belum terlihat.</div>
+  </div>
+  <div class="pos-bottom">
+    <div class="pos-bar"><i id="posProgress"></i></div>
+    <button class="btn ghost" id="posCancelBtn" type="button">Batal</button>
+  </div>
+</div>
+
+<div class="pause" id="pauseUi" hidden>
+  <div class="pause-box">
+    <div class="pause-title">Jeda</div>
+    <div class="pause-sub" id="pauseSub">Kembali ke depan kamera untuk melanjutkan.</div>
+  </div>
+</div>
+
 <section class="screen" id="countdown" hidden><div class="big" id="cd">3</div></section>
 
-<!-- 3. Hasil -->
+<!-- 5. Hasil -->
 <section class="screen" id="result" hidden>
-  <div class="card tvcard">
-    <div class="verdict" id="verdict">Target tercapai!</div>
-    <div class="stats">
-      <div class="stat"><div class="label">Skor</div><div class="val" id="rScore">0</div></div>
-      <div class="stat"><div class="label">Balon pecah</div><div class="val" id="rPopped">0</div></div>
-      <div class="stat"><div class="label">Total kalori</div><div class="val" id="rKcal">0</div></div>
-      <div class="stat"><div class="label">Kalori / balon</div><div class="val" id="rPer">0</div></div>
-      <div class="stat"><div class="label">Ketepatan</div><div class="val" id="rAcc">0%</div></div>
-      <div class="stat"><div class="label">Skor terbaik</div><div class="val" id="rBest">0</div></div>
+  <div class="card result-card">
+    <div class="card-head"><div class="verdict" id="verdict">Permainan selesai</div><button class="brand-btn" type="button" aria-label="Tentang aplikasi"><img class="brand" src="img/sandymind-white.png" alt="Sandy Mind"></button></div>
+    <div class="result-grid">
+      <div>
+        <div class="stats">
+          <div class="stat"><div class="label">Skor</div><div class="val" id="rScore">0</div></div>
+          <div class="stat"><div class="label">Balon pecah</div><div class="val" id="rPopped">0</div></div>
+          <div class="stat"><div class="label">Waktu main</div><div class="val" id="rTime">0:00</div></div>
+          <div class="stat"><div class="label">Total kalori</div><div class="val" id="rKcal">0</div></div>
+          <div class="stat"><div class="label">Kalori / balon</div><div class="val" id="rPer">0</div></div>
+          <div class="stat"><div class="label">Ketepatan</div><div class="val" id="rAcc">0%</div></div>
+        </div>
+        <form class="save-row" id="saveForm" hidden>
+          <label class="label" for="nameInput">Masuk 10 besar! Tulis namamu</label>
+          <div class="row">
+            <input id="nameInput" type="text" maxlength="12" autocomplete="off" spellcheck="false">
+            <button class="btn alt" type="submit">Simpan nama</button>
+          </div>
+        </form>
+      </div>
+      <div class="board">
+        <div class="label">10 skor tertinggi</div>
+        <ol class="board-list" id="resultBoard"></ol>
+      </div>
     </div>
-    <p class="lead note">Kalori adalah perkiraan: MET × berat badan × durasi. Nilai MET mengikuti seberapa banyak tubuhmu bergerak (2 = diam, 8 = sangat aktif).</p>
     <div class="btnrow">
       <button class="btn" id="againBtn" type="button">Main lagi</button>
-      <button class="btn ghost" id="menuBtn" type="button">Ubah pengaturan</button>
+      <button class="btn ghost" id="menuBtn" type="button">Menu</button>
     </div>
+  </div>
+</section>
+
+<!-- 6. Papan skor -->
+<section class="screen" id="boardScreen" hidden>
+  <div class="card board-card">
+    <div class="card-head"><h1>10 skor <span>tertinggi</span></h1><button class="brand-btn" type="button" aria-label="Tentang aplikasi"><img class="brand" src="img/sandymind-white.png" alt="Sandy Mind"></button></div>
+    <div class="label">Mode Bebas · tersimpan di perangkat ini</div>
+    <ol class="board-list" id="boardList"></ol>
+    <button class="btn ghost" id="boardBackBtn" type="button">Kembali</button>
+  </div>
+</section>
+
+<!-- 7. Tentang aplikasi -->
+<section class="screen" id="aboutScreen" hidden>
+  <div class="card about-card">
+    <div class="about-grid">
+      <div class="about-main">
+        <img class="about-logo" src="img/sandymind-white.png" alt="Sandy Mind">
+        <div class="about-title"><h1>Balon <span>Pecah</span></h1><span class="version" id="appVersion">Versi</span></div>
+        <p class="lead">Game gerak berbasis kamera dari Sandy Mind. Pecahkan balon dengan seluruh badan, hindari bom, dan lihat perkiraan kalori yang terbakar. Bisa dimainkan di HP, tablet, atau TV dengan HP sebagai kamera, dan tetap berjalan tanpa internet.</p>
+        <div class="about-actions">
+          <button class="btn ghost small" id="shareBtn" type="button">Bagikan aplikasi</button>
+          <a class="btn ghost small" id="feedbackLink" href="mailto:sandymind729@gmail.com?subject=Masukan%20Balon%20Pecah">Kirim masukan</a>
+        </div>
+        <a class="btn ig small" id="igLink" href="https://www.instagram.com/sandy.mind/" target="_blank" rel="noopener"><svg class="ig-icon" viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="5" fill="none" stroke="currentColor" stroke-width="2"/><circle cx="12" cy="12" r="4" fill="none" stroke="currentColor" stroke-width="2"/><circle cx="17.3" cy="6.7" r="1.2" fill="currentColor"/></svg><span>Follow @sandy.mind di Instagram</span></a>
+        <div class="status" id="aboutStatus">Masukan dan saran: <span class="mail">sandymind729@gmail.com</span></div>
+      </div>
+      <div class="support">
+        <div class="label">Dukung aplikasi ini</div>
+        <div class="support-row">
+          <div class="support-text">
+            <p>Suka dengan Balon Pecah? Dukung pengembangan mode dan fitur berikutnya lewat donasi di Saweria.</p>
+            <a class="btn alt small" id="saweriaLink" href="https://saweria.co/sandymind" target="_blank" rel="noopener">Donasi di Saweria</a>
+          </div>
+          <div>
+            <div class="qrbox" id="saweriaQr" aria-label="QR code ke saweria.co/sandymind"></div>
+            <div class="qr-caption">Scan untuk donasi</div>
+          </div>
+        </div>
+        <div class="url">saweria.co/sandymind</div>
+      </div>
+    </div>
+    <button class="btn ghost small" id="aboutBackBtn" type="button">Kembali</button>
   </div>
 </section>
 
 <div class="conn" id="connBadge" hidden>HP tersambung</div>
 
-<script src="https://cdn.jsdelivr.net/npm/peerjs@1.5.4/dist/peerjs.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+<script src="vendor/peerjs.min.js"></script>
+<script src="vendor/qrcode.min.js"></script>
 <script>
 const PEER_PREFIX = 'balonpecah-tv-';
+const LIVES = 3;      // nyawa awal
+const MAX_LIVES = 5;  // batas nyawa yang bisa dikumpulkan lewat sarung tangan
+const LEVEL_SECONDS = 60;
+const HOLD_SECONDS = 1.5;   // lama pemain harus pas di siluet sebelum hitung mundur
+const INVULNERABLE = 1.5;   // detik kebal setelah kena bom
+const BOARD_KEY = 'balonPecahTop10';
+const SETTINGS_KEY = 'balonPecahSettings';
+const WEB_VERSION = '1.1.0';  // samakan dengan versionName di android-tv/app/build.gradle
+const SHARE_URL = 'https://marionanavu-lab.github.io/balon-pecah/';
+const SAWERIA_URL = 'https://saweria.co/sandymind';
+const FEEDBACK_EMAIL = 'sandymind729@gmail.com';
 
 const $ = id => document.getElementById(id);
 const canvas = $('stage'), ctx = canvas.getContext('2d');
@@ -187,27 +524,44 @@ const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 const lerp = (a, b, t) => a + (b - a) * t;
 const pick = arr => arr[(Math.random() * arr.length) | 0];
 const easeOutBack = t => { const c = 1.7; return 1 + (c + 1) * Math.pow(t - 1, 3) + c * Math.pow(t - 1, 2); };
+const fmtTime = s => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, '0')}`;
 
 const COLORS = ['#ff5a5f', '#3db8ff', '#2ee6a6', '#a77bff', '#ff8a3d', '#ff6fb5'];
 const GOLD = '#ffc23d';
-const TARGETS = { 30: 15, 60: 30, 90: 45 };
-// Titik pose MediaPipe: 0 hidung, 11/12 bahu, 15/16 pergelangan tangan, 17-22 jari, 23/24 pinggul, 27/28 pergelangan kaki
+const GLOVE_PATH = new Path2D('M7 21v-6.3L4.2 10.9a1.6 1.6 0 0 1 2.5-2L8 10.3V4.6a1.5 1.5 0 0 1 3 0V10h.6V3.4a1.5 1.5 0 0 1 3 0V10h.6V4.4a1.5 1.5 0 0 1 3 0V10.6h.5V7.3a1.5 1.5 0 0 1 3 0v8.2c0 3-2.3 5.5-5.3 5.5H7z'); // ikon sarung tangan 24×24
+const MAX_GLOVES = 2;
+// Titik pose MediaPipe: 0 hidung, 7/8 telinga, 11/12 bahu, 13/14 siku, 15/16 pergelangan tangan, 17-22 jari,
+// 23/24 pinggul, 25/26 lutut, 27/28 pergelangan kaki, 29/30 tumit, 31/32 ujung kaki
 const MOVE_PTS = [0, 15, 16, 23, 24, 27, 28];
-const BONES = [[11,12],[11,13],[13,15],[12,14],[14,16],[11,23],[12,24],[23,24],[23,25],[25,27],[24,26],[26,28]];
+// Bagian badan yang bisa mengenai balon: [titik a, titik b, tebal relatif terhadap lebar bahu]
+const BODY_SEGS = [
+  [11, 13, .13], [13, 15, .13], [12, 14, .13], [14, 16, .13],   // lengan
+  [15, 19, .12], [16, 20, .12],                                 // tangan
+  [23, 25, .17], [25, 27, .17], [24, 26, .17], [26, 28, .17],   // kaki
+  [27, 31, .1], [28, 32, .1], [29, 31, .1], [30, 32, .1],       // telapak kaki
+  [11, 12, .06], [11, 23, .06], [12, 24, .06], [23, 24, .06],   // tepi badan
+];
 
 const state = {
-  phase: 'pair', // pair | menu | countdown | play | result
-  duration: 60, target: 30, weight: 60,
-  timeLeft: 60, score: 0, popped: 0, escaped: 0, kcal: 0, kcalSincePop: 0,
-  balloons: [], particles: [], texts: [], spawnIn: 0,
+  phase: 'start', // start | mode | pair | menu | position | countdown | play | over | result | board
+  framing: 'full', weight: 60, showBody: false, // garis badan disembunyikan supaya tampilan lebih nyata
+  score: 0, lives: LIVES, elapsed: 0, popped: 0, escaped: 0, kcal: 0, kcalSincePop: 0, hurtUntil: -1,
+  balloons: [], particles: [], texts: [], spawnIn: 0, paused: false, resumeIn: 0,
+  hazards: [], bombIn: 4, nextEvent: 20, rainUntil: -1, banner: null,
+  items: [], itemIn: 25, gloves: 0, gloveOn: false, clapApart: false, level: 1,
 };
-let W = 0, H = 0, DPR = 1, handR = 30, shake = 0, lastTick = 0;
-let landmarks = null, poseW = 16, poseH = 9, lastPoseAt = 0;
+try {
+  const s = JSON.parse(localStorage.getItem(SETTINGS_KEY) || '{}');
+  if (s.weight) state.weight = clamp(Math.round(+s.weight), 20, 200);
+  if (s.framing === 'full' || s.framing === 'half') state.framing = s.framing;
+  if (typeof s.showBody === 'boolean') state.showBody = s.showBody;
+} catch {}
+
+let W = 0, H = 0, DPR = 1, shake = 0, flash = 0;
+let landmarks = null, poseW = 16, poseH = 9, lastPoseAt = 0, body = null;
 let prevPose = null, prevPoseAt = 0, rawMove = 0, rawAt = 0, intensity = 0;
-let hands = [];
 let lastT = performance.now();
-let best = 0;
-try { best = +localStorage.getItem('balonPecahTvBest') || 0; } catch {}
+let ambient = []; // balon hiasan di halaman awal
 
 /* ---------- Ukuran layar ---------- */
 function resize() {
@@ -215,22 +569,37 @@ function resize() {
   W = innerWidth; H = innerHeight;
   canvas.width = W * DPR; canvas.height = H * DPR;
   ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
-  handR = Math.max(26, Math.min(W, H) * 0.055);
 }
 addEventListener('resize', resize);
 resize();
 
+/* ---------- Pindah layar ---------- */
 const show = (id, on) => { $(id).hidden = !on; };
-function showScreen(id) {
-  for (const s of ['pairScreen', 'menu', 'countdown', 'result']) show(s, s === id);
-  const focus = { menu: 'startBtn', result: 'againBtn' }[id];
+const SCREEN_OF = { start: 'startScreen', mode: 'modeScreen', pair: 'pairScreen', menu: 'menu', countdown: 'countdown', result: 'result', board: 'boardScreen', about: 'aboutScreen' };
+const FOCUS_OF = { start: 'startGameBtn', mode: 'freeModeBtn', menu: 'playBtn', result: 'againBtn', board: 'boardBackBtn', about: 'saweriaLink' };
+const AMBIENT_PHASES = new Set(['start', 'mode', 'board', 'about']);
+
+function go(phase) {
+  state.phase = phase;
+  const id = SCREEN_OF[phase];
+  for (const s of Object.values(SCREEN_OF)) show(s, s === id);
+  show('positionUi', phase === 'position');
+  if (phase !== 'play') show('pauseUi', false);
+  document.body.classList.toggle('playing', phase === 'play' || phase === 'over' || phase === 'countdown' || phase === 'position');
+  renderInventory(false);
+  show('hud', phase === 'countdown' || phase === 'play' || phase === 'over');
+  if (phase !== 'play' && phase !== 'countdown') show('hint', false);
+  let focus = FOCUS_OF[phase];
+  if (phase === 'pair') focus = ['selfBtn', 'modeBtn', 'pairBackBtn'].find(f => !$(f).hidden);
   if (focus) setTimeout(() => $(focus).focus(), 50);
+  if (phase === 'pair') renderPair();
+  sendStatus();
 }
 
 /* ---------- Pairing dengan HP (PeerJS / WebRTC) ---------- */
 let peer = null, conn = null, mediaCall = null, code = '';
 
-// Aplikasi Android TV membuka halaman ini dengan ?camera=<alamat camera.html yang di-hosting>,
+// Aplikasi Android membuka halaman ini dengan ?camera=<alamat camera.html yang di-hosting>,
 // karena halaman di dalam APK tidak bisa dibuka dari HP. Di browser biasa, pakai camera.html di sebelahnya.
 function cameraPageUrl() {
   const fromParam = new URLSearchParams(location.search).get('camera');
@@ -242,23 +611,112 @@ function setPairStatus(msg, kind = '') {
   const s = $('pairStatus'); s.textContent = msg; s.className = 'status ' + kind;
 }
 
+/* Dua cara pairing:
+   - online: halaman kamera di GitHub Pages + server PeerJS (butuh internet, tanpa peringatan sertifikat)
+   - lokal (hanya di aplikasi Android): aplikasi menyajikan halaman kamera sendiri lewat HTTPS di WiFi,
+     HP mengirim penawaran WebRTC ke aplikasi, tanpa internet sama sekali.
+   Aplikasi pindah ke mode lokal otomatis bila internet atau halaman kamera online tidak bisa dijangkau. */
+const bridge = () => window.BalonTV || null; // disediakan oleh aplikasi Android
+let pairMode = 'online', userPickedMode = false, peerReady = false, qrUrl = '';
+
+function localBase() {
+  try { return bridge()?.localServerUrl() || ''; } catch { return ''; }
+}
+function useLocalMode(reason) {
+  if (userPickedMode || pairMode === 'local' || !localBase()) return;
+  pairMode = 'local';
+  console.info('mode lokal:', reason);
+  renderPair();
+}
+
+function renderPair() {
+  const lb = localBase();
+  const local = pairMode === 'local' && !!lb;
+  show('codeBlock', !local); show('stepsOnline', !local);
+  show('localTag', local); show('stepsLocal', local);
+  $('modeBtn').hidden = !lb;
+  $('modeBtn').textContent = local ? 'Pakai mode online' : 'Pakai mode tanpa internet';
+  let url = '';
+  if (local) url = lb + 'camera.html?local=1';
+  else if (peerReady) { const u = cameraPageUrl(); u.search = '?code=' + code; url = u.href; }
+  if (url === qrUrl) return;
+  qrUrl = url;
+  $('qr').innerHTML = '';
+  $('pairUrl').textContent = url || 'Menyiapkan…';
+  if (url) {
+    new QRCode($('qr'), { text: url, width: 280, height: 280, correctLevel: QRCode.CorrectLevel.M });
+    setPairStatus(local ? 'Menunggu HP tersambung lewat WiFi…' : 'Menunggu HP tersambung…');
+  }
+}
+
+$('modeBtn').addEventListener('click', () => {
+  userPickedMode = true;
+  pairMode = pairMode === 'local' ? 'online' : 'local';
+  renderPair();
+});
+
+if (bridge()) {
+  if (!navigator.onLine) useLocalMode('tidak ada internet');
+  // Cek apakah halaman kamera online benar-benar bisa dibuka (404 / tanpa internet -> mode lokal)
+  window.onProbe = status => { if (status !== 200) useLocalMode('halaman kamera online: ' + status); };
+  try { bridge().probe(cameraPageUrl().href); } catch {}
+  setTimeout(() => { if (!peerReady) useLocalMode('server pairing tidak menjawab'); }, 8000);
+  // Server lokal butuh sesaat untuk menyala, dan IP bisa berubah saat WiFi tersambung ulang
+  setInterval(() => { if (state.phase === 'pair') renderPair(); }, 2000);
+}
+
+// Penawaran sambungan dari HP dalam mode lokal (diteruskan oleh aplikasi Android)
+let localPc = null;
+const iceDone = (pc, ms) => new Promise(resolve => {
+  if (pc.iceGatheringState === 'complete') return resolve();
+  const t = setTimeout(resolve, ms);
+  pc.addEventListener('icegatheringstatechange', () => { if (pc.iceGatheringState === 'complete') { clearTimeout(t); resolve(); } });
+});
+window.onLocalOffer = async (id, offerJson) => {
+  try {
+    const pc = new RTCPeerConnection({ iceServers: [] });
+    pc.ontrack = e => {
+      remote.srcObject = e.streams[0] || new MediaStream([e.track]);
+      remote.hidden = false; remote.play().catch(() => {});
+    };
+    pc.ondatachannel = e => attachLocalChannel(e.channel, pc);
+    await pc.setRemoteDescription(JSON.parse(offerJson));
+    await pc.setLocalDescription(await pc.createAnswer());
+    await iceDone(pc, 2000);
+    bridge().postAnswer(id, JSON.stringify(pc.localDescription));
+  } catch (err) {
+    console.error(err);
+    bridge()?.postAnswer(id, '');
+  }
+};
+function attachLocalChannel(ch, pc) {
+  const c = { get open() { return ch.readyState === 'open'; }, send: o => { if (ch.readyState === 'open') ch.send(JSON.stringify(o)); }, close: () => pc.close() };
+  ch.onopen = () => {
+    if (conn && conn !== c) conn.close(); // satu HP saja; HP baru menggantikan yang lama
+    if (localPc && localPc !== pc) localPc.close();
+    localPc = pc; conn = c;
+    onPhoneConnected();
+  };
+  ch.onmessage = e => { try { onData(JSON.parse(e.data)); } catch {} };
+  ch.onclose = () => { if (conn === c) onPhoneLost(); };
+}
+
 function startPeer() {
   code = String(Math.floor(1000 + Math.random() * 9000));
+  peerReady = false;
   peer = new Peer(PEER_PREFIX + code, { debug: 0 });
   peer.on('open', () => {
     $('code').textContent = code;
-    const url = cameraPageUrl();
-    url.search = '?code=' + code;
-    $('pairUrl').textContent = url.href;
-    $('qr').innerHTML = '';
-    new QRCode($('qr'), { text: url.href, width: 280, height: 280, correctLevel: QRCode.CorrectLevel.M });
-    setPairStatus('Menunggu HP tersambung…');
+    peerReady = true;
+    qrUrl = '';
+    renderPair();
   });
   peer.on('error', err => {
     if (err.type === 'unavailable-id') { peer.destroy(); startPeer(); return; } // kode sudah dipakai, ambil kode lain
     console.warn('peer error', err.type, err);
     if (['network', 'server-error', 'socket-error', 'socket-closed'].includes(err.type)) {
-      setPairStatus('Tidak bisa menghubungi server pairing. Cek koneksi internet TV, mencoba lagi…', 'err');
+      if (pairMode === 'online') setPairStatus('Tidak bisa menghubungi server pairing. Cek koneksi internet TV, mencoba lagi…', 'err');
+      useLocalMode('server pairing: ' + err.type);
       setTimeout(() => { if (!conn) { peer.destroy(); startPeer(); } }, 4000);
     }
   });
@@ -279,37 +737,129 @@ function startPeer() {
 }
 
 function onPhoneConnected() {
+  if (source === 'self') stopSelfCamera(); // HP baru tersambung: pakai kamera HP
+  source = 'phone';
+  renderSource();
   show('connBadge', true);
-  if (state.phase === 'pair') { state.phase = 'menu'; showScreen('menu'); }
+  if (state.phase === 'pair') go('menu');
   sendStatus();
 }
 
 function onPhoneLost() {
-  conn = null; landmarks = null;
+  conn = null;
   if (mediaCall) { mediaCall.close(); mediaCall = null; }
+  if (source === 'self') return; // HP diputus karena pindah ke kamera perangkat ini
+  source = null; landmarks = null;
   remote.srcObject = null; remote.hidden = true;
   show('connBadge', false);
   if (state.phase === 'menu' || state.phase === 'result') {
-    state.phase = 'pair'; show('hud', false); show('hint', false); showScreen('pairScreen');
+    go('pair');
     setPairStatus('Koneksi HP terputus. Buka lagi halaman kamera di HP untuk menyambung ulang.', 'err');
   }
 }
 
+/* ---------- Kamera perangkat ini ----------
+   Dipakai bila aplikasi berjalan di perangkat yang punya kamera (HP, tablet, atau TV dengan kamera USB).
+   Video kamera ditampilkan di elemen yang sama dengan video dari HP, dan pose dideteksi langsung di sini. */
+let source = null; // null | 'phone' | 'self'
+let selfStream = null, selfPose = null, selfLastVT = -1, selfTried = false;
+
+async function deviceHasCamera() {
+  try { if (bridge()) return !!bridge().hasCamera(); } catch {}
+  try { return (await navigator.mediaDevices.enumerateDevices()).some(d => d.kind === 'videoinput'); } catch { return false; }
+}
+const cameraCheck = deviceHasCamera().then(has => { $('selfBtn').hidden = !has; return has; });
+
+async function loadPose() {
+  const base = new URL('vendor/mediapipe', location.href).href;
+  const { PoseLandmarker, FilesetResolver } = await import(base + '/vision_bundle.mjs');
+  const files = await FilesetResolver.forVisionTasks(base + '/wasm');
+  const model = new URL('vendor/models/pose_landmarker_lite.task', location.href).href;
+  const opts = delegate => ({ baseOptions: { modelAssetPath: model, delegate }, runningMode: 'VIDEO', numPoses: 1 });
+  try { return await PoseLandmarker.createFromOptions(files, opts('GPU')); }
+  catch { return await PoseLandmarker.createFromOptions(files, opts('CPU')); }
+}
+
+async function startSelfCamera() {
+  const btn = $('selfBtn');
+  btn.disabled = true;
+  setPairStatus('Membuka kamera perangkat ini…');
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({
+      video: { facingMode: 'user', width: { ideal: 1280 }, height: { ideal: 720 } }, audio: false,
+    });
+    try {
+      if (!selfPose) { setPairStatus('Memuat pendeteksi gerak tubuh…'); selfPose = await loadPose(); }
+    } catch (err) { stream.getTracks().forEach(t => t.stop()); throw err; }
+    selfStream = stream; source = 'self';
+    remote.srcObject = stream; remote.hidden = false; remote.play().catch(() => {});
+    if (conn) conn.close(); // HP yang sedang tersambung dilepas
+    renderSource();
+    show('connBadge', true);
+    if (state.phase === 'pair') go('menu');
+  } catch (err) {
+    console.error(err);
+    setPairStatus(err.name === 'NotAllowedError'
+      ? 'Izin kamera ditolak. Pakai HP sebagai kamera, atau izinkan kamera di pengaturan aplikasi.'
+      : 'Kamera perangkat ini tidak bisa dibuka. Pakai HP sebagai kamera.', 'err');
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+function stopSelfCamera() {
+  if (!selfStream) return;
+  if (remote.srcObject === selfStream) { remote.srcObject = null; remote.hidden = true; }
+  selfStream.getTracks().forEach(t => t.stop());
+  selfStream = null; landmarks = null;
+  if (source === 'self') source = null;
+}
+
+function detectSelf(now) {
+  if (source !== 'self' || !selfPose || remote.readyState < 2 || remote.currentTime === selfLastVT) return;
+  selfLastVT = remote.currentTime;
+  const lm = selfPose.detectForVideo(remote, now).landmarks?.[0];
+  onPose({ t: 'pose', w: remote.videoWidth, h: remote.videoHeight, p: lm ? lm.flatMap(q => [q.x, q.y, q.visibility ?? 1]) : null });
+}
+
+function renderSource() {
+  const self = source === 'self';
+  $('sourceLabel').textContent = self ? 'Memakai kamera perangkat ini' : 'HP tersambung';
+  $('connBadge').textContent = self ? 'Kamera perangkat' : 'HP tersambung';
+  $('sourceBtn').hidden = !self;
+  $('menuHint').hidden = self;
+}
+
+// Setelah mode dipilih: pakai sumber kamera yang sudah ada, atau (di aplikasi) langsung kamera perangkat bila ada
+async function proceedToSource() {
+  if (source) { go('menu'); return; }
+  go('pair');
+  if (bridge() && !selfTried && await cameraCheck) { selfTried = true; startSelfCamera(); }
+}
+
+$('selfBtn').addEventListener('click', startSelfCamera);
+$('sourceBtn').addEventListener('click', () => {
+  stopSelfCamera();
+  show('connBadge', false);
+  go('pair');
+  setPairStatus('Scan QR dengan HP untuk memakai kamera HP.');
+});
+
 function onData(m) {
   if (!m || typeof m !== 'object') return;
   if (m.t === 'pose') onPose(m);
-  else if (m.t === 'start' && (state.phase === 'menu' || state.phase === 'result')) beginCountdown();
+  else if (m.t === 'start' && (state.phase === 'menu' || state.phase === 'result')) { audio(); beginPositioning(); }
   else if (m.t === 'settings' && Number.isFinite(+m.weight)) { state.weight = clamp(Math.round(+m.weight), 20, 200); renderSettings(); }
 }
 
 function sendStatus() {
   if (!conn?.open) return;
-  conn.send({ t: 'status', phase: state.phase, score: state.score, target: state.target,
-    time: Math.ceil(state.timeLeft), kcal: +state.kcal.toFixed(2), weight: state.weight });
+  conn.send({ t: 'status', phase: state.phase, score: state.score, lives: state.lives,
+    time: Math.floor(state.elapsed), kcal: +state.kcal.toFixed(2), weight: state.weight });
 }
 setInterval(sendStatus, 500);
 
-/* ---------- Data pose dari HP -> tangan & intensitas gerak ---------- */
+/* ---------- Data pose -> badan & intensitas gerak ---------- */
 function onPose(m) {
   const now = performance.now();
   lastPoseAt = now;
@@ -324,7 +874,7 @@ function onPose(m) {
   const ls = P(11), rs = P(12);
   const shoulder = Math.hypot(ls.x - rs.x, ls.y - rs.y) || 1; // skala tubuh, supaya jarak ke kamera tidak berpengaruh
   const cur = MOVE_PTS.map(P);
-  if (prevPose && now - prevPoseAt < 500) {
+  if (prevPose && now - prevPoseAt > 5 && now - prevPoseAt < 500) { // abaikan data yang tiba hampir bersamaan
     let d = 0;
     cur.forEach((p, k) => { const q = prevPose[k]; if (p.v > 0.5 && q.v > 0.5) d += Math.hypot(p.x - q.x, p.y - q.y); });
     rawMove = d / shoulder / ((now - prevPoseAt) / 1000) / 9; // ~9 lebar bahu/detik total = gerak penuh
@@ -340,23 +890,60 @@ function coverRect() {
   return { x: (W - vw * s) / 2, y: (H - vh * s) / 2, w: vw * s, h: vh * s };
 }
 const toScreen = (lm, r) => ({ x: W - (r.x + lm.x * r.w), y: r.y + lm.y * r.h });
+const visible = i => (landmarks[i].visibility ?? 1) > 0.5;
 
-function updateHands(now) {
-  hands = [];
+// Bentuk badan di layar: ruas tebal (lengan, kaki, tepi badan), lingkaran (kepala, telapak), dan poligon badan
+function updateBody(now) {
   if (now - lastPoseAt > 700) landmarks = null;
+  body = null;
   if (!landmarks) return;
   const r = coverRect();
-  // Titik telapak = rata-rata pergelangan, telunjuk dan kelingking
-  for (const [w, i, p] of [[15, 19, 17], [16, 20, 18]]) {
-    const a = landmarks[w], b = landmarks[i], c = landmarks[p];
-    if ((a.visibility ?? 1) < 0.4) continue;
-    hands.push(toScreen({ x: (a.x + b.x + c.x) / 3, y: (a.y + b.y + c.y) / 3 }, r));
+  const P = landmarks.map(l => toScreen(l, r));
+  const m = Math.min(W, H);
+  let sw = visible(11) && visible(12) ? Math.hypot(P[11].x - P[12].x, P[11].y - P[12].y) : m * 0.18;
+  sw = clamp(sw, m * 0.05, m * 0.8);
+  const segs = BODY_SEGS.filter(([a, b]) => visible(a) && visible(b))
+    .map(([a, b, k]) => ({ a: P[a], b: P[b], w: Math.max(6, k * sw) }));
+  const circles = [];
+  const avg = ids => ({ x: ids.reduce((s, i) => s + P[i].x, 0) / ids.length, y: ids.reduce((s, i) => s + P[i].y, 0) / ids.length });
+  const head = [0, 7, 8].filter(visible);
+  if (head.length) circles.push({ ...avg(head), r: 0.42 * sw });
+  const palms = [];
+  for (const palm of [[15, 17, 19], [16, 18, 20]]) {
+    const ids = palm.filter(visible);
+    const c = ids.length ? { ...avg(ids), r: Math.max(12, 0.18 * sw) } : null;
+    if (c) circles.push(c);
+    palms.push(c);
   }
+  const poly = [11, 12, 24, 23].every(visible) ? [P[11], P[12], P[24], P[23]] : null;
+  body = { segs, circles, poly, P, sw, palms };
+}
+
+function distToSeg(p, a, b) {
+  const dx = b.x - a.x, dy = b.y - a.y, len = dx * dx + dy * dy;
+  const t = len ? clamp(((p.x - a.x) * dx + (p.y - a.y) * dy) / len, 0, 1) : 0;
+  return Math.hypot(p.x - (a.x + t * dx), p.y - (a.y + t * dy));
+}
+function inPoly(p, poly) {
+  let inside = false;
+  for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) {
+    const a = poly[i], b = poly[j];
+    if ((a.y > p.y) !== (b.y > p.y) && p.x < (b.x - a.x) * (p.y - a.y) / (b.y - a.y) + a.x) inside = !inside;
+  }
+  return inside;
+}
+function hitsBody(b) {
+  if (!body) return false;
+  const rr = b.r * 0.85;
+  for (const c of body.circles) if (Math.hypot(c.x - b.x, c.y - b.y) < c.r + rr) return true;
+  for (const s of body.segs) if (distToSeg(b, s.a, s.b) < s.w + rr) return true;
+  return !!body.poly && inPoly(b, body.poly);
 }
 
 function updateIntensity(now, dt) {
-  const raw = now - rawAt < 500 ? rawMove : 0;
+  const raw = now - rawAt < 500 && Number.isFinite(rawMove) ? rawMove : 0;
   intensity += (clamp(raw, 0, 1.5) - intensity) * Math.min(1, dt * 2);
+  if (!Number.isFinite(intensity)) intensity = 0;
 }
 const currentMet = () => 2 + 6 * clamp(intensity, 0, 1);
 function intensityLabel() {
@@ -365,40 +952,73 @@ function intensityLabel() {
   return `${name} · MET ${currentMet().toFixed(1)}`;
 }
 
-/* ---------- Menu (remote TV) ---------- */
+/* ---------- Pengaturan ---------- */
 function renderSettings() {
   $('weightOut').textContent = state.weight;
-  $('targetOut').textContent = state.target;
-  document.querySelectorAll('#durations .seg').forEach(s => s.setAttribute('aria-pressed', String(+s.dataset.sec === state.duration)));
+  document.querySelectorAll('#framing .seg').forEach(s => s.setAttribute('aria-pressed', String(s.dataset.framing === state.framing)));
+  document.querySelectorAll('#bodyLines .seg').forEach(s => s.setAttribute('aria-pressed', String((s.dataset.lines === 'on') === state.showBody)));
+  try { localStorage.setItem(SETTINGS_KEY, JSON.stringify({ weight: state.weight, framing: state.framing, showBody: state.showBody })); } catch {}
 }
 document.querySelectorAll('[data-step]').forEach(b => b.addEventListener('click', () => {
-  const [key, d] = b.dataset.step.split(':');
-  if (key === 'weight') state.weight = clamp(state.weight + +d, 20, 200);
-  else state.target = clamp(state.target + +d, 5, 300);
+  state.weight = clamp(state.weight + +b.dataset.step, 20, 200);
   renderSettings();
 }));
-$('durations').addEventListener('click', e => {
+$('bodyLines').addEventListener('click', e => {
   const b = e.target.closest('.seg'); if (!b) return;
-  state.duration = +b.dataset.sec;
-  state.target = TARGETS[state.duration];
+  state.showBody = b.dataset.lines === 'on';
+  renderSettings();
+});
+$('framing').addEventListener('click', e => {
+  const b = e.target.closest('.seg'); if (!b) return;
+  state.framing = b.dataset.framing;
   renderSettings();
 });
 renderSettings();
 
-$('startBtn').addEventListener('click', () => { audio(); beginCountdown(); });
-$('againBtn').addEventListener('click', () => { audio(); beginCountdown(); });
-$('menuBtn').addEventListener('click', () => { state.phase = 'menu'; showScreen('menu'); });
+/* ---------- Tombol layar ---------- */
+$('startGameBtn').addEventListener('click', () => { audio(); go('mode'); });
+$('freeModeBtn').addEventListener('click', proceedToSource);
+$('modeBackBtn').addEventListener('click', () => go('start'));
+let boardReturn = 'mode';
+$('boardBtn').addEventListener('click', () => { boardReturn = state.phase; renderBoard($('boardList'), loadBoard()); go('board'); });
+$('boardBackBtn').addEventListener('click', () => go(boardReturn));
+$('pairBackBtn').addEventListener('click', () => go('mode'));
+$('menuBackBtn').addEventListener('click', () => go('mode'));
+$('playBtn').addEventListener('click', () => { audio(); beginPositioning(); });
+$('posCancelBtn').addEventListener('click', () => go('menu'));
+$('againBtn').addEventListener('click', () => { audio(); beginPositioning(); });
+$('menuBtn').addEventListener('click', () => go('menu'));
+
+// Tombol Back (remote / HP) dan Esc: kembali satu langkah. false = di halaman awal, aplikasi boleh ditutup.
+function handleBack() {
+  switch (state.phase) {
+    case 'mode': go('start'); return true;
+    case 'pair': case 'menu': go('mode'); return true;
+    case 'board': go(boardReturn); return true;
+    case 'about': go(aboutReturn); return true;
+    case 'position': go('menu'); return true;
+    case 'countdown': clearInterval(cdTimer); go('menu'); return true;
+    case 'play': case 'over': endGame(); return true;
+    case 'result': go('menu'); return true;
+  }
+  return false;
+}
+window.onBackPressed = handleBack; // dipanggil aplikasi Android
 
 // Navigasi D-pad remote: panah memindahkan fokus ke tombol terdekat ke arah itu
 addEventListener('keydown', e => {
   audio();
+  if (e.key === 'Escape' || e.key === 'GoBack' || e.key === 'BrowserBack') { if (handleBack()) e.preventDefault(); return; }
   const dir = { ArrowUp: [0, -1], ArrowDown: [0, 1], ArrowLeft: [-1, 0], ArrowRight: [1, 0] }[e.key];
   if (!dir) return;
-  const items = [...document.querySelectorAll('.screen:not([hidden]) button')];
-  if (!items.length) return;
   const cur = document.activeElement;
+  if (cur?.tagName === 'INPUT' && dir[1] === 0) return; // kiri/kanan untuk kursor teks
+  const items = [...document.querySelectorAll(
+    '.screen:not([hidden]) button:not([disabled]), .screen:not([hidden]) a[href], .screen:not([hidden]) input, #positionUi:not([hidden]) button')]
+    .filter(el => el.offsetParent !== null);
+  if (!items.length) return;
   e.preventDefault();
-  if (!items.includes(cur)) { items[items.length - 1].focus(); return; }
+  if (!items.includes(cur)) { items[0].focus(); return; }
   const a = cur.getBoundingClientRect(), ax = a.left + a.width / 2, ay = a.top + a.height / 2;
   let bestEl = null, bestScore = Infinity;
   for (const el of items) {
@@ -413,126 +1033,401 @@ addEventListener('keydown', e => {
   bestEl?.focus();
 });
 
-/* ---------- Alur permainan ---------- */
+/* ---------- Kalibrasi posisi ----------
+   Siluet di tengah layar (ukuran relatif tinggi layar). Pemain harus pas selama HOLD_SECONDS. */
+let fitHeld = 0;
+function guide() {
+  const cx = W / 2;
+  // Kepala di bawah teks petunjuk; kaki di dekat tepi bawah layar
+  if (state.framing === 'full') return { cx, headY: H * 0.22, headR: H * 0.06, shY: H * 0.33, shW: H * 0.18, hipY: H * 0.59, hipW: H * 0.13, footY: H * 0.92 };
+  return { cx, headY: H * 0.32, headR: H * 0.1, shY: H * 0.6, shW: H * 0.38, hipY: H * 1.05, hipW: H * 0.3, footY: null };
+}
+
+function checkFit() {
+  if (!source) return { ok: false, msg: 'Kamera belum tersambung.' };
+  if (!landmarks || !body) return { ok: false, msg: 'Badan belum terlihat. Berdiri di depan kamera.' };
+  if (![0, 11, 12].every(visible)) return { ok: false, msg: 'Pastikan kepala dan bahu terlihat kamera.' };
+  const g = guide(), P = body.P;
+  const mid = { x: (P[11].x + P[12].x) / 2, y: (P[11].y + P[12].y) / 2 };
+  const tolX = g.shW * 0.45;
+  // Layar dicerminkan: badan di kiri layar berarti pemain perlu bergeser ke kanannya sendiri
+  if (mid.x < g.cx - tolX) return { ok: false, msg: 'Geser ke kanan.' };
+  if (mid.x > g.cx + tolX) return { ok: false, msg: 'Geser ke kiri.' };
+  if (state.framing === 'full') {
+    if (!visible(27) || !visible(28)) return { ok: false, msg: 'Mundur sampai kaki terlihat.' };
+    const feetY = (P[27].y + P[28].y) / 2;
+    const scale = (feetY - P[0].y) / (g.footY - g.headY);
+    if (scale < 0.82) return { ok: false, msg: 'Maju sedikit.' };
+    if (scale > 1.15) return { ok: false, msg: 'Mundur sedikit.' };
+    if (Math.abs(P[0].y - g.headY) > H * 0.09) return { ok: false, msg: 'Atur kamera supaya kepala dan kaki pas di garis.' };
+  } else {
+    const scale = body.sw / g.shW;
+    if (scale < 0.75) return { ok: false, msg: 'Maju sedikit.' };
+    if (scale > 1.35) return { ok: false, msg: 'Mundur sedikit.' };
+    if (Math.abs(mid.y - g.shY) > H * 0.11) return { ok: false, msg: 'Atur kamera supaya bahu sejajar garis.' };
+  }
+  return { ok: true, msg: 'Pas! Tahan posisi…' };
+}
+
+function beginPositioning() {
+  if (!source) { go('pair'); return; }
+  resetGame();
+  fitHeld = 0;
+  $('posTitle').textContent = state.framing === 'full'
+    ? 'Berdiri di dalam garis, kepala sampai kaki' : 'Berdiri di dalam garis, kepala sampai pinggang';
+  go('position');
+}
+
+let lastFitOk = false;
+function updatePositioning(dt) {
+  const fit = checkFit();
+  lastFitOk = fit.ok;
+  fitHeld = fit.ok ? fitHeld + dt : Math.max(0, fitHeld - dt * 2);
+  $('posHint').textContent = fit.msg;
+  $('posHint').classList.toggle('ok', fit.ok);
+  $('posProgress').style.width = Math.min(100, fitHeld / HOLD_SECONDS * 100) + '%';
+  if (fitHeld >= HOLD_SECONDS) beginCountdown();
+}
+
+/* ---------- Alur Mode Bebas ---------- */
+let cdTimer = 0, overTimer = 0;
 function resetGame() {
+  clearInterval(cdTimer); clearTimeout(overTimer);
   Object.assign(state, {
-    timeLeft: state.duration, score: 0, popped: 0, escaped: 0, kcal: 0, kcalSincePop: 0,
-    balloons: [], particles: [], texts: [], spawnIn: 0.2,
+    score: 0, lives: LIVES, elapsed: 0, popped: 0, escaped: 0, kcal: 0, kcalSincePop: 0, hurtUntil: -1,
+    balloons: [], particles: [], texts: [], spawnIn: 0.3, paused: false, resumeIn: 0,
+    hazards: [], bombIn: 4, nextEvent: 20, rainUntil: -1, banner: null,
+    items: [], itemIn: 25, gloves: 0, gloveOn: false, clapApart: false, level: 1,
   });
-  lastTick = 0;
+  renderLives(false);
+  renderInventory(false);
   updateHud();
 }
 
 function beginCountdown() {
-  if (state.phase === 'countdown' || state.phase === 'play') return;
-  showScreen('countdown'); show('hud', true);
-  resetGame();
-  state.phase = 'countdown';
-  sendStatus();
+  go('countdown');
   let n = 3;
   $('cd').textContent = n; beep(660, 0.12);
-  const iv = setInterval(() => {
+  clearInterval(cdTimer);
+  cdTimer = setInterval(() => {
     n--;
     if (n > 0) { $('cd').textContent = n; beep(660, 0.12); }
-    else { clearInterval(iv); show('countdown', false); beep(990, 0.25); state.phase = 'play'; sendStatus(); }
+    else { clearInterval(cdTimer); beep(990, 0.25); go('play'); }
   }, 1000);
 }
 
-function endGame() {
-  state.phase = 'result';
-  const win = state.score >= state.target;
-  if (state.score > best) { best = state.score; try { localStorage.setItem('balonPecahTvBest', best); } catch {} }
-  const v = $('verdict');
-  v.textContent = win ? 'Target tercapai!' : `Kurang ${state.target - state.score} poin lagi`;
-  v.className = 'verdict ' + (win ? 'win' : 'lose');
-  $('rScore').textContent = `${state.score} / ${state.target}`;
-  $('rPopped').textContent = state.popped;
-  $('rKcal').textContent = `${state.kcal.toFixed(1)} kkal`;
-  $('rPer').textContent = state.popped ? `${(state.kcal / state.popped).toFixed(2)} kkal` : '–';
-  const tries = state.popped + state.escaped;
-  $('rAcc').textContent = tries ? Math.round(state.popped / tries * 100) + '%' : '–';
-  $('rBest').textContent = best;
-  show('hud', false); show('hint', false); showScreen('result');
-  sendStatus();
-  if (win) [784, 988, 1175, 1568].forEach((f, i) => setTimeout(() => beep(f, 0.18, 'triangle', 0.18), i * 120));
-  else [392, 330, 262].forEach((f, i) => setTimeout(() => beep(f, 0.25, 'sine', 0.18), i * 180));
+/* ---------- Kemunculan balon, bom dan kejadian ---------- */
+// Kotak badan pemain di layar (ditambah jarak aman), supaya balon/bom tidak muncul tepat di badan
+function bodyBox(pad) {
+  if (!body) return null;
+  const pts = body.segs.flatMap(s => [s.a, s.b]).concat(body.circles);
+  if (!pts.length) return null;
+  let x0 = Infinity, x1 = -Infinity, y0 = Infinity, y1 = -Infinity;
+  for (const q of pts) { x0 = Math.min(x0, q.x); x1 = Math.max(x1, q.x); y0 = Math.min(y0, q.y); y1 = Math.max(y1, q.y); }
+  return { x0: x0 - pad, x1: x1 + pad, y0: y0 - pad, y1: y1 + pad, cx: (x0 + x1) / 2, cy: (y0 + y1) / 2 };
+}
+function nearPlayer(x, y, r) {
+  const box = bodyBox(r + Math.min(W, H) * 0.12);
+  if (box) return x > box.x0 && x < box.x1 && y > box.y0 && y < box.y1;
+  return Math.abs(x - W / 2) < W * 0.2 + r; // badan belum terbaca: kosongkan bagian tengah
+}
+// Tengah badan pemain: tujuan bom dan bola duri
+function playerCenter() {
+  const q = body?.poly;
+  if (q) return { x: (q[0].x + q[1].x + q[2].x + q[3].x) / 4, y: (q[0].y + q[1].y + q[2].y + q[3].y) / 4 };
+  const box = bodyBox(0);
+  return box ? { x: box.cx, y: box.cy } : { x: W / 2, y: H / 2 };
 }
 
-function spawn(prog) {
+function spawnBalloon(prog, fromTop = false) {
   const m = Math.min(W, H);
-  const roll = Math.random();
-  const type = roll < 0.1 ? 'gold' : roll < 0.18 + prog * 0.07 ? 'bomb' : 'normal';
+  const type = Math.random() < 0.1 ? 'gold' : 'normal';
   let r = m * rand(0.065, 0.09) * (1 - prog * 0.2);
   if (type === 'gold') r *= 0.8;
-  const top = Math.min(H * 0.3, 150);
+  const { top, bottom } = playArea(r);
   let x, y, tries = 0;
   do {
     x = rand(r + 16, W - r - 16);
-    y = rand(top + r, H - r * 2.6);
-  } while (++tries < 12 && state.balloons.some(o => Math.hypot(o.x - x, o.y - y) < o.r + r + 30));
-  const speed = m * rand(0.04, 0.09) * (1 + prog) * (type === 'gold' ? 1.8 : 1);
+    y = fromTop ? top + r : rand(top + r, bottom);
+  } while (++tries < 25 && (nearPlayer(x, y, r) || state.balloons.some(o => Math.hypot(o.x - x, o.y - y) < o.r + r + 30)));
+  if (nearPlayer(x, y, r)) return; // belum ada tempat aman; dicoba lagi nanti
+  const speed = m * rand(0.04, 0.09) * (1 + prog * 1.2) * (type === 'gold' ? 1.8 : 1);
   const ang = Math.random() * Math.PI * 2;
   state.balloons.push({
     x, y, r, type, color: type === 'gold' ? GOLD : pick(COLORS),
-    vx: Math.cos(ang) * speed, vy: Math.sin(ang) * speed,
-    age: 0, life: rand(4.5, 6.5) - prog * 1.5 - (type === 'gold' ? 1 : 0),
+    vx: fromTop ? m * rand(-0.03, 0.03) : Math.cos(ang) * speed,
+    vy: fromTop ? m * rand(0.12, 0.2) : Math.sin(ang) * speed,
+    falling: fromTop,
+    age: 0, life: fromTop ? Infinity : rand(4.5, 6.5) - prog * 1.5 - (type === 'gold' ? 1 : 0),
     phase: Math.random() * 6.3, escaping: false, dead: false,
   });
 }
 
-function update(dt) {
-  state.timeLeft -= dt;
-  if (state.timeLeft <= 0) { state.timeLeft = 0; endGame(); return; }
-  const sec = Math.ceil(state.timeLeft);
-  if (sec <= 5 && sec !== lastTick) { lastTick = sec; beep(880, 0.08, 'square', 0.08); }
+// Bom muncul di tepi kiri/kanan (biasanya sisi yang jauh dari pemain), lalu bergerak pelan ke arah badan
+function spawnBomb(prog) {
+  const m = Math.min(W, H), r = m * rand(0.06, 0.075);
+  const { top, bottom } = playArea(r);
+  const c = playerCenter();
+  const left = c.x > W / 2 ? Math.random() < 0.75 : Math.random() < 0.25;
+  state.balloons.push({
+    x: left ? r + 8 : W - r - 8, y: rand(top + r, bottom), r, type: 'bomb', color: '#333',
+    vx: 0, vy: 0, speed: m * (0.11 + prog * 0.06), // pelan: butuh ~6 detik untuk sampai ke pemain
+    age: 0, life: rand(9, 11), phase: Math.random() * 6.3, escaping: false, dead: false,
+  });
+}
 
+// Kejadian berkala: bola duri jatuh (didahului tanda peringatan) atau hujan balon bonus
+function startEvent(prog) {
+  const spike = state.elapsed < 40 || Math.random() < 0.6;
+  if (spike) {
+    const m = Math.min(W, H), c = playerCenter();
+    const n = prog > 0.6 && Math.random() < 0.5 ? 2 : 1;
+    for (let i = 0; i < n; i++) {
+      const x = clamp(c.x + rand(-1, 1) * m * (i ? 0.45 : 0.15), m * 0.06, W - m * 0.06);
+      state.hazards.push({ x, y: -m * 0.06, r: m * 0.04, vy: H * (0.55 + prog * 0.25), warn: 1.1 + i * 0.4, rot: 0, dead: false });
+    }
+    showBanner('Awas bola duri!', '#ff5a5f');
+    beep(520, 0.12, 'square', 0.1); setTimeout(() => beep(520, 0.12, 'square', 0.1), 180);
+  } else {
+    state.rainUntil = state.elapsed + 4;
+    showBanner('Hujan balon!', GOLD);
+    beep(880, 0.12, 'triangle', 0.15); setTimeout(() => beep(1175, 0.18, 'triangle', 0.15), 120);
+  }
+  state.nextEvent = state.elapsed + rand(12, 18) - prog * 4;
+}
+// Tingkat kesulitan 0..1 yang naik pelan dan makin melambat:
+// sekitar 0,22 di menit 1, 0,53 di menit 3, 0,71 di menit 5, 0,92 di menit 10
+function difficulty() { return 1 - Math.exp(-state.elapsed / 240); }
+
+function showBanner(text, color) { state.banner = { text, color, age: 0 }; }
+
+// Area main: di bawah HUD sampai bawah layar (setengah badan: sampai sekitar pinggang)
+function playArea(r) {
+  const top = Math.min(H * 0.3, Math.max(70, H * 0.16));
+  const bottom = state.framing === 'half' ? H * 0.8 : H - r * 1.2;
+  return { top, bottom };
+}
+
+// Pemain dianggap di depan kamera bila kepala dan kedua bahu terlihat dan masih di dalam layar
+function playerInView() {
+  if (!landmarks || !body || ![0, 11, 12].every(visible)) return false;
+  const P = body.P, x = (P[11].x + P[12].x) / 2, y = (P[11].y + P[12].y) / 2;
+  return x > 0 && x < W && y > 0 && y < H;
+}
+
+function update(dt) {
+  // Keluar dari kamera: jeda. Setelah kembali, tunggu 1 detik stabil sebelum lanjut.
+  if (!playerInView()) { state.paused = true; state.resumeIn = 1; return; }
+  if (state.paused) {
+    state.resumeIn -= dt;
+    if (state.resumeIn > 0) return;
+    state.paused = false;
+  }
+  state.elapsed += dt;
   const dk = currentMet() * state.weight * dt / 3600; // kkal = MET × kg × jam
   state.kcal += dk;
   state.kcalSincePop += dk;
 
-  const prog = 1 - state.timeLeft / state.duration;
-  state.spawnIn -= dt;
-  const maxOnScreen = 2 + Math.round(prog * 3);
-  if (state.spawnIn <= 0 && state.balloons.length < maxOnScreen) {
-    spawn(prog);
-    state.spawnIn = lerp(1.1, 0.45, prog) * rand(0.7, 1.3);
+  const m = Math.min(W, H);
+  const prog = difficulty();
+  const level = 1 + Math.floor(state.elapsed / LEVEL_SECONDS);
+  if (level > state.level) {
+    state.level = level;
+    showBanner(`Level ${level}`, '#a77bff');
+    [660, 880, 1100].forEach((f, i) => setTimeout(() => beep(f, 0.12, 'triangle', 0.14), i * 90));
   }
+  const raining = state.elapsed < state.rainUntil;
+  const bombsNow = state.balloons.filter(b => b.type === 'bomb').length;
+  const balloonsNow = state.balloons.length - bombsNow;
 
-  const top = Math.min(H * 0.3, 150);
+  state.spawnIn -= dt;
+  if (state.spawnIn <= 0 && balloonsNow < (raining ? 8 : 2) + Math.round(prog * 3)) {
+    spawnBalloon(prog, raining);
+    state.spawnIn = raining ? 0.18 : lerp(1.2, 0.45, prog) * rand(0.7, 1.3);
+  }
+  state.bombIn -= dt;
+  if (state.bombIn <= 0 && !raining && bombsNow < (prog > 0.5 ? 2 : 1)) {
+    spawnBomb(prog);
+    state.bombIn = lerp(6, 3, prog) * rand(0.8, 1.2);
+  }
+  if (state.elapsed >= state.nextEvent) startEvent(prog);
+  state.itemIn -= dt;
+  if (state.itemIn <= 0) {
+    if (!state.items.length && state.gloves < MAX_GLOVES) spawnGloveItem();
+    state.itemIn = rand(25, 40);
+  }
+  updateItems(dt);
+  if (detectClap() && state.gloves > 0 && !state.gloveOn) activateGlove();
+
+  const hurt = state.elapsed < state.hurtUntil;
+  const target = playerCenter();
   for (const b of state.balloons) {
     b.age += dt;
-    if (!b.escaping && b.age > b.life) { b.escaping = true; b.vy = -Math.min(W, H) * 0.3; }
+    const { top, bottom } = playArea(b.r);
+    if (!b.escaping && b.age > b.life) { b.escaping = true; b.vy = -m * 0.3; }
     if (b.escaping) {
-      b.vy -= Math.min(W, H) * 1.6 * dt;
+      b.vy -= m * 1.6 * dt;
       b.x += b.vx * 0.3 * dt; b.y += b.vy * dt;
       if (b.y < -b.r * 3) { b.dead = true; if (b.type !== 'bomb') state.escaped++; }
+    } else if (b.type === 'bomb') {
+      // Mendekat pelan ke tengah badan pemain sambil sedikit bergoyang. Saat sudah dekat arahnya dikunci,
+      // jadi pemain bisa menghindar dengan bergeser dan bom lewat lalu keluar layar.
+      const dx = target.x - b.x, dy = target.y - b.y, d = Math.hypot(dx, dy) || 1;
+      if (d > m * 0.3 || !b.vx && !b.vy) {
+        const k = Math.min(1, dt * 0.8);
+        b.vx += (dx / d * b.speed - b.vx) * k;
+        b.vy += (dy / d * b.speed - b.vy) * k;
+      }
+      b.x += b.vx * dt;
+      b.y += (b.vy + Math.sin(b.age * 3 + b.phase) * b.r * 0.4) * dt;
+      if (b.x < -b.r * 2 || b.x > W + b.r * 2 || b.y < -b.r * 2 || b.y > H + b.r * 2) b.dead = true;
+    } else if (b.falling) {
+      b.x += b.vx * dt; b.y += b.vy * dt;
+      if (b.y > H + b.r * 3) { b.dead = true; state.escaped++; }
     } else {
       b.x += b.vx * dt;
       b.y += (b.vy + Math.sin(b.age * 2 + b.phase) * b.r * 0.6) * dt;
       if (b.x < b.r + 8) { b.x = b.r + 8; b.vx = Math.abs(b.vx); }
       if (b.x > W - b.r - 8) { b.x = W - b.r - 8; b.vx = -Math.abs(b.vx); }
       if (b.y < top + b.r) { b.y = top + b.r; b.vy = Math.abs(b.vy); }
-      if (b.y > H - b.r * 2.6) { b.y = H - b.r * 2.6; b.vy = -Math.abs(b.vy); }
+      if (b.y > bottom) { b.y = bottom; b.vy = -Math.abs(b.vy); }
     }
-    if (!b.dead && b.age > 0.2) {
-      for (const h of hands) {
-        if (Math.hypot(h.x - b.x, h.y - b.y) < b.r * 0.95 + handR) { pop(b); break; }
-      }
+    if (b.dead || b.age < 0.2) continue;
+    if (b.type === 'bomb' && hurt) continue; // masih kebal setelah kena
+    if (hitsBody(b)) {
+      if (b.type === 'bomb' && state.gloveOn) defuseBomb(b);
+      else pop(b);
     }
+    if (state.phase !== 'play') break;
   }
   state.balloons = state.balloons.filter(b => !b.dead);
+
+  // Bola duri: tunggu tanda peringatan habis, lalu jatuh lurus
+  for (const h of state.hazards) {
+    if (state.phase !== 'play') break;
+    if (h.warn > 0) { h.warn -= dt; continue; }
+    h.y += h.vy * dt; h.rot += dt * 6;
+    if (h.y > H + h.r * 2 || h.y < -h.r * 3) { h.dead = true; continue; }
+    if (h.deflected || !hitsBody(h)) continue;
+    if (state.gloveOn) deflectSpike(h);
+    else if (state.elapsed >= state.hurtUntil) { h.dead = true; loseLife(h.x, h.y, 'Kena bola duri'); }
+  }
+  state.hazards = state.hazards.filter(h => !h.dead);
+}
+
+/* ---------- Sarung tangan ----------
+   Diambil dari gelembung yang melayang, disimpan (maks. 2), dipakai dengan menepukkan kedua tangan.
+   Sekali pakai: menjinakkan satu bom atau menangkis satu bola duri. */
+function spawnGloveItem() {
+  const m = Math.min(W, H), r = m * 0.07;
+  const { top, bottom } = playArea(r);
+  let x, y, tries = 0;
+  do { x = rand(r + 16, W - r - 16); y = rand(top + r, bottom); } while (++tries < 25 && nearPlayer(x, y, r));
+  if (nearPlayer(x, y, r)) { state.itemIn = 2; return; }
+  const ang = Math.random() * Math.PI * 2, speed = m * 0.04;
+  state.items.push({ x, y, r, vx: Math.cos(ang) * speed, vy: Math.sin(ang) * speed, age: 0, life: 8, phase: Math.random() * 6.3, dead: false });
+  showBanner('Sarung tangan!', '#3db8ff');
+  beep(988, 0.1, 'triangle', 0.14); setTimeout(() => beep(1319, 0.14, 'triangle', 0.14), 100);
+}
+
+function updateItems(dt) {
+  for (const it of state.items) {
+    it.age += dt;
+    if (it.age > it.life) { it.dead = true; continue; }
+    const { top, bottom } = playArea(it.r);
+    it.x += it.vx * dt;
+    it.y += (it.vy + Math.sin(it.age * 2 + it.phase) * it.r * 0.5) * dt;
+    if (it.x < it.r + 8 || it.x > W - it.r - 8) it.vx *= -1;
+    if (it.y < top + it.r || it.y > bottom) it.vy *= -1;
+    it.x = clamp(it.x, it.r + 8, W - it.r - 8); it.y = clamp(it.y, top + it.r, bottom);
+    if (it.age > 0.3 && hitsBody(it)) {
+      it.dead = true;
+      state.gloves = Math.min(MAX_GLOVES, state.gloves + 1);
+      addText(it.x, it.y, '+1', '#3db8ff', 'Tepuk tangan untuk memakai');
+      burst(it.x, it.y, '#3db8ff', 22, 1);
+      beep(1047, 0.12, 'triangle', 0.16); setTimeout(() => beep(1568, 0.18, 'triangle', 0.16), 110);
+      renderInventory(true);
+    }
+  }
+  state.items = state.items.filter(it => !it.dead);
+}
+
+// Tepuk tangan: kedua telapak harus berjauhan dulu, lalu dirapatkan (supaya tidak aktif tanpa sengaja)
+function detectClap() {
+  const [a, b] = body?.palms || [];
+  if (!a || !b) { state.clapApart = false; return false; }
+  const d = Math.hypot(a.x - b.x, a.y - b.y) / body.sw;
+  if (d > 0.75) state.clapApart = true;
+  if (d < 0.35 && state.clapApart) { state.clapApart = false; return true; }
+  return false;
+}
+
+function activateGlove() {
+  state.gloves--;
+  state.gloveOn = true;
+  showBanner('Sarung tangan aktif!', '#2ee6a6');
+  for (const p of body.palms) if (p) burst(p.x, p.y, '#2ee6a6', 14, 0.8);
+  beep(784, 0.1, 'triangle', 0.16); setTimeout(() => beep(1175, 0.2, 'triangle', 0.16), 90);
+  renderInventory(true);
+}
+
+function defuseBomb(b) {
+  b.dead = true;
+  state.gloveOn = false;
+  state.score += 2;
+  addText(b.x, b.y, '+2', '#2ee6a6', gainLife() ? 'Bom dijinakkan! Nyawa +1' : 'Bom dijinakkan!');
+  burst(b.x, b.y, '#2ee6a6', 24, 1.1);
+  beep(659, 0.12, 'triangle', 0.16); setTimeout(() => beep(988, 0.2, 'triangle', 0.16), 100);
+  renderInventory(true);
+}
+
+function deflectSpike(h) {
+  h.deflected = true;
+  h.vy = -H * 1.4;
+  state.gloveOn = false;
+  addText(h.x, h.y, 'Tangkis!', '#2ee6a6', gainLife() ? 'Nyawa +1' : 'Sarung tangan terpakai');
+  burst(h.x, h.y, '#d9dce8', 16, 0.9);
+  beep(1319, 0.08, 'square', 0.1); setTimeout(() => beep(880, 0.12, 'square', 0.08), 70);
+  renderInventory(true);
+}
+
+// Hadiah sarung tangan: nyawa +1 (maks. MAX_LIVES). Mengembalikan true bila nyawa bertambah.
+function gainLife() {
+  if (state.lives >= MAX_LIVES) return false;
+  state.lives++;
+  renderLives(false, true);
+  return true;
+}
+
+function renderInventory(bump) {
+  const inv = $('inventory');
+  const playing = state.phase === 'play' || state.phase === 'over';
+  inv.hidden = !playing || (!state.gloves && !state.gloveOn);
+  inv.classList.toggle('on', state.gloveOn);
+  $('invCount').textContent = state.gloveOn ? 'Sarung tangan aktif' : `Sarung tangan ×${state.gloves}`;
+  $('invHint').textContent = state.gloveOn
+    ? 'Sekali pakai: bom atau bola duri' + (state.gloves ? ` · cadangan ${state.gloves}` : '')
+    : 'Tepuk tangan untuk memakai';
+  if (bump) { inv.classList.remove('pop'); void inv.offsetWidth; inv.classList.add('pop'); }
+}
+
+function loseLife(x, y, label) {
+  state.lives--;
+  state.hurtUntil = state.elapsed + INVULNERABLE;
+  addText(x, y, '−1', '#ff5a5f', label);
+  burst(x, y, '#ff5a5f', 28, 1.6);
+  burst(x, y, '#ffc23d', 14, 1.2);
+  shake = 0.45; flash = 0.5; boom();
+  renderLives(true);
+  if (state.lives <= 0) {
+    go('over');
+    overTimer = setTimeout(endGame, 1100);
+  }
 }
 
 function pop(b) {
   b.dead = true;
-  if (b.type === 'bomb') {
-    state.score = Math.max(0, state.score - 2);
-    addText(b.x, b.y, '−2', '#ff5a5f', 'Bom!');
-    burst(b.x, b.y, '#ff5a5f', 28, 1.6);
-    burst(b.x, b.y, '#ffc23d', 14, 1.2);
-    shake = 0.4; boom();
-    return;
-  }
+  if (b.type === 'bomb') { loseLife(b.x, b.y, 'Nyawa berkurang'); return; }
   const pts = b.type === 'gold' ? 3 : 1;
   state.score += pts;
   state.popped++;
@@ -542,6 +1437,137 @@ function pop(b) {
   burst(b.x, b.y, b.color, b.type === 'gold' ? 32 : 20, 1);
   popSound(b.type === 'gold');
 }
+
+function endGame() {
+  if (state.phase === 'result') return;
+  clearTimeout(overTimer);
+  const entry = recordScore();
+  bestScoreCache = bestScore();
+  renderResult(entry);
+  go('result');
+  if (entry) [784, 988, 1175, 1568].forEach((f, i) => setTimeout(() => beep(f, 0.18, 'triangle', 0.18), i * 120));
+  else [392, 330, 262].forEach((f, i) => setTimeout(() => beep(f, 0.25, 'sine', 0.18), i * 180));
+}
+
+/* ---------- 10 skor tertinggi (disimpan di perangkat ini) ---------- */
+function loadBoard() {
+  try {
+    const list = JSON.parse(localStorage.getItem(BOARD_KEY) || '[]');
+    return Array.isArray(list) ? list.filter(e => Number.isFinite(e?.score)) : [];
+  } catch { return []; }
+}
+function saveBoard(list) {
+  try { localStorage.setItem(BOARD_KEY, JSON.stringify(list)); } catch {}
+}
+const bestScore = () => loadBoard()[0]?.score || 0;
+function lastName() {
+  try { return localStorage.getItem('balonPecahName') || ''; } catch { return ''; }
+}
+
+// Skor yang masuk 10 besar langsung disimpan (dengan nama terakhir); pemain bisa mengganti namanya di layar hasil
+function recordScore() {
+  if (state.score <= 0) return null;
+  const top = loadBoard();
+  if (top.length >= 10 && state.score <= top[top.length - 1].score) return null;
+  const entry = {
+    id: Date.now(), name: lastName() || 'Pemain', score: state.score, kcal: +state.kcal.toFixed(2),
+    secs: Math.round(state.elapsed), popped: state.popped, framing: state.framing, date: new Date().toISOString(),
+  };
+  top.push(entry);
+  top.sort((a, b) => b.score - a.score || a.id - b.id);
+  saveBoard(top.slice(0, 10));
+  return entry;
+}
+
+let currentEntryId = null;
+function renderResult(entry) {
+  const top = loadBoard();
+  const rank = entry ? top.findIndex(e => e.id === entry.id) + 1 : 0;
+  const v = $('verdict');
+  v.textContent = rank === 1 ? 'Rekor baru!' : rank ? `Peringkat ${rank} dari 10 besar` : 'Permainan selesai';
+  v.className = 'verdict' + (rank ? ' win' : '');
+  $('rScore').textContent = state.score;
+  $('rPopped').textContent = state.popped;
+  $('rTime').textContent = `${fmtTime(state.elapsed)} · Lv ${state.level}`;
+  $('rKcal').textContent = `${state.kcal.toFixed(1)} kkal`;
+  $('rPer').textContent = state.popped ? `${(state.kcal / state.popped).toFixed(2)} kkal` : '–';
+  const tries = state.popped + state.escaped;
+  $('rAcc').textContent = tries ? Math.round(state.popped / tries * 100) + '%' : '–';
+  currentEntryId = entry?.id ?? null;
+  $('saveForm').hidden = !entry;
+  if (entry) $('nameInput').value = entry.name;
+  renderBoard($('resultBoard'), top, currentEntryId);
+}
+
+function renderBoard(ol, top, highlightId) {
+  ol.textContent = '';
+  if (!top.length) {
+    const li = document.createElement('li');
+    li.className = 'board-empty';
+    li.textContent = 'Belum ada skor. Jadilah yang pertama!';
+    ol.append(li);
+    return;
+  }
+  top.forEach((e, i) => {
+    const li = document.createElement('li');
+    if (e.id === highlightId) li.className = 'me';
+    for (const [cls, text] of [['rk', i + 1], ['nm', e.name || 'Pemain'], ['sc', e.score], ['kc', `${(+e.kcal || 0).toFixed(1)} kkal`]]) {
+      const span = document.createElement('span');
+      span.className = cls; span.textContent = text;
+      li.append(span);
+    }
+    ol.append(li);
+  });
+}
+
+$('saveForm').addEventListener('submit', e => {
+  e.preventDefault();
+  const name = $('nameInput').value.trim().slice(0, 12) || 'Pemain';
+  const top = loadBoard();
+  const entry = top.find(x => x.id === currentEntryId);
+  if (entry) { entry.name = name; saveBoard(top); }
+  try { localStorage.setItem('balonPecahName', name); } catch {}
+  $('saveForm').hidden = true;
+  renderBoard($('resultBoard'), top, currentEntryId);
+  $('againBtn').focus();
+});
+
+/* ---------- Tentang aplikasi ---------- */
+let aboutReturn = 'mode';
+function setAboutStatus(msg) { $('aboutStatus').textContent = msg; }
+function openAbout() {
+  aboutReturn = state.phase;
+  let version = WEB_VERSION + ' (web)';
+  try { if (bridge()?.appVersion) version = bridge().appVersion(); } catch {}
+  $('appVersion').textContent = 'Versi ' + version;
+  if (!$('saweriaQr').firstChild) {
+    new QRCode($('saweriaQr'), { text: SAWERIA_URL, width: 200, height: 200, correctLevel: QRCode.CorrectLevel.M });
+  }
+  go('about');
+}
+document.querySelectorAll('.brand-btn').forEach(b => b.addEventListener('click', openAbout));
+$('aboutBackBtn').addEventListener('click', () => go(aboutReturn));
+
+async function shareApp() {
+  const text = 'Ayo main Balon Pecah! Pecahkan balon dengan seluruh badan dan bakar kalori.';
+  try { if (bridge()?.share) { bridge().share(text + ' ' + SHARE_URL); return; } } catch {}
+  if (navigator.share) {
+    try { await navigator.share({ title: 'Balon Pecah', text, url: SHARE_URL }); return; }
+    catch (err) { if (err.name === 'AbortError') return; }
+  }
+  try { await navigator.clipboard.writeText(SHARE_URL); setAboutStatus('Link disalin: ' + SHARE_URL); }
+  catch { setAboutStatus('Bagikan link ini: ' + SHARE_URL); }
+}
+$('shareBtn').addEventListener('click', shareApp);
+
+// Dipanggil aplikasi Android bila tidak ada aplikasi untuk membuka link (mis. TV tanpa browser/email)
+window.onExternalFailed = url => {
+  if (url === 'share:') { setAboutStatus('Bagikan link ini: ' + SHARE_URL); return; }
+  setAboutStatus(url.startsWith('mailto:')
+    ? `Tidak ada aplikasi email di perangkat ini. Kirim masukan ke ${FEEDBACK_EMAIL} dari HP.`
+    : url.includes('instagram.com') ? 'Tidak ada browser di perangkat ini. Cari @sandy.mind di Instagram dari HP.'
+    : 'Tidak ada browser di perangkat ini. Scan QR dengan HP untuk donasi.');
+};
 
 /* ---------- Efek ---------- */
 function burst(x, y, color, n, power) {
@@ -563,7 +1589,22 @@ function updateFx(dt) {
   state.particles = state.particles.filter(p => p.age < p.life);
   for (const t of state.texts) t.age += dt;
   state.texts = state.texts.filter(t => t.age < 1.1);
+  if (state.banner && (state.banner.age += dt) > 2.2) state.banner = null;
   shake = Math.max(0, shake - dt);
+  flash = Math.max(0, flash - dt);
+}
+
+// Balon hiasan yang naik pelan di halaman awal, pilih mode dan papan skor
+function updateAmbient(dt) {
+  const m = Math.min(W, H);
+  if (ambient.length < 6 && Math.random() < dt * 1.2) {
+    const r = m * rand(0.05, 0.085);
+    ambient.push({ x: rand(r, W - r), y: H + r * 3, r, type: Math.random() < 0.15 ? 'gold' : 'normal', color: pick(COLORS),
+      vy: -m * rand(0.08, 0.16), age: 1, life: Infinity, phase: Math.random() * 6.3, escaping: false });
+  }
+  for (const b of ambient) { b.age += dt; b.y += b.vy * dt; b.x += Math.sin(b.age + b.phase) * b.r * 0.4 * dt; }
+  ambient = ambient.filter(b => b.y > -b.r * 4);
+  for (const b of ambient) if (b.type === 'gold') b.color = GOLD;
 }
 
 /* ---------- Gambar ---------- */
@@ -582,15 +1623,55 @@ function drawBackdrop() {
   ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
 }
 
-function drawSkeleton() {
-  const r = coverRect();
+// Area badan yang bisa memecahkan balon; merah berkedip saat kebal setelah kena bom
+function drawBody(now) {
+  if (!body) return;
+  const hurt = (state.phase === 'play' || state.phase === 'over') && state.elapsed < state.hurtUntil;
+  const col = hurt ? '255,90,95' : '46,230,166';
+  const a = hurt && Math.floor(now / 120) % 2 ? 0.12 : 0.3;
   ctx.save();
-  ctx.strokeStyle = 'rgba(255,255,255,.4)'; ctx.lineWidth = 3; ctx.lineCap = 'round';
+  ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+  if (body.poly) {
+    ctx.fillStyle = `rgba(${col},${a * 0.5})`;
+    ctx.beginPath(); body.poly.forEach((p, i) => i ? ctx.lineTo(p.x, p.y) : ctx.moveTo(p.x, p.y)); ctx.closePath(); ctx.fill();
+  }
+  ctx.strokeStyle = `rgba(${col},${a})`;
+  for (const s of body.segs) { ctx.lineWidth = s.w * 2; ctx.beginPath(); ctx.moveTo(s.a.x, s.a.y); ctx.lineTo(s.b.x, s.b.y); ctx.stroke(); }
+  ctx.strokeStyle = `rgba(${col},.9)`; ctx.lineWidth = 2.5;
   ctx.beginPath();
-  for (const [a, b] of BONES) {
-    if ((landmarks[a].visibility ?? 1) < 0.5 || (landmarks[b].visibility ?? 1) < 0.5) continue;
-    const p = toScreen(landmarks[a], r), q = toScreen(landmarks[b], r);
-    ctx.moveTo(p.x, p.y); ctx.lineTo(q.x, q.y);
+  for (const s of body.segs) { ctx.moveTo(s.a.x, s.a.y); ctx.lineTo(s.b.x, s.b.y); }
+  ctx.stroke();
+  for (const c of body.circles) {
+    ctx.fillStyle = `rgba(${col},${a * 0.6})`;
+    ctx.beginPath(); ctx.arc(c.x, c.y, c.r, 0, 7); ctx.fill(); ctx.stroke();
+  }
+  ctx.restore();
+}
+
+// Siluet panduan posisi: putih saat belum pas, hijau saat pas
+function drawGuide() {
+  const g = guide();
+  const ok = lastFitOk;
+  ctx.save();
+  ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+  ctx.strokeStyle = ok ? 'rgba(46,230,166,.9)' : 'rgba(255,255,255,.7)';
+  ctx.lineWidth = Math.max(4, H * 0.012);
+  ctx.setLineDash(ok ? [] : [H * 0.03, H * 0.02]);
+  ctx.shadowColor = 'rgba(0,0,0,.6)'; ctx.shadowBlur = 8;
+  const sl = g.cx - g.shW / 2, sr = g.cx + g.shW / 2, hl = g.cx - g.hipW / 2, hr = g.cx + g.hipW / 2;
+  const armOut = g.shW * 0.22, armY = g.shY + (Math.min(g.hipY, H) - g.shY) * 0.95;
+  ctx.beginPath();
+  ctx.arc(g.cx, g.headY, g.headR, 0, Math.PI * 2);
+  ctx.moveTo(g.cx, g.headY + g.headR); ctx.lineTo(g.cx, g.shY);              // leher
+  ctx.moveTo(sl, g.shY); ctx.lineTo(sr, g.shY);                              // bahu
+  ctx.moveTo(sl, g.shY); ctx.lineTo(hl, g.hipY);                             // sisi badan
+  ctx.moveTo(sr, g.shY); ctx.lineTo(hr, g.hipY);
+  ctx.moveTo(sl, g.shY); ctx.lineTo(sl - armOut, armY);                      // lengan
+  ctx.moveTo(sr, g.shY); ctx.lineTo(sr + armOut, armY);
+  if (g.footY) {
+    ctx.moveTo(hl, g.hipY); ctx.lineTo(hr, g.hipY);                          // pinggul
+    ctx.moveTo(hl + g.hipW * 0.1, g.hipY); ctx.lineTo(g.cx - g.hipW * 0.45, g.footY); // kaki
+    ctx.moveTo(hr - g.hipW * 0.1, g.hipY); ctx.lineTo(g.cx + g.hipW * 0.45, g.footY);
   }
   ctx.stroke();
   ctx.restore();
@@ -618,8 +1699,8 @@ function drawBalloon(b, now) {
     ctx.fillStyle = g; ctx.beginPath(); ctx.arc(0, 0, r * 0.9, 0, 7); ctx.fill();
     ctx.strokeStyle = `rgba(255,90,95,${0.5 + 0.5 * Math.sin(now / 120)})`; ctx.lineWidth = 3;
     ctx.beginPath(); ctx.arc(0, 0, r * 0.9, 0, 7); ctx.stroke();
-    ctx.fillStyle = '#ff5a5f'; ctx.font = `${r * 0.5}px Bungee, "Arial Black", sans-serif`;
-    ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText('−2', 0, r * 0.05);
+    ctx.fillStyle = '#ff5a5f'; ctx.font = `${r * 0.7}px Bungee, "Arial Black", sans-serif`;
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText('!', 0, r * 0.05);
   } else {
     ctx.strokeStyle = 'rgba(255,255,255,.65)'; ctx.lineWidth = 1.5;
     ctx.beginPath(); ctx.moveTo(0, r * 1.18);
@@ -636,6 +1717,96 @@ function drawBalloon(b, now) {
       ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText('+3', 0, r * 0.08);
     }
   }
+  ctx.restore();
+}
+
+function drawHazards(now) {
+  const m = Math.min(W, H);
+  for (const h of state.hazards) {
+    ctx.save();
+    if (h.warn > 0) {
+      // Tanda peringatan di posisi jatuh + garis jalur
+      const y = playArea(h.r).top + m * 0.05, s = m * 0.05;
+      ctx.globalAlpha = 0.55 + 0.45 * Math.abs(Math.sin(now / 110));
+      ctx.strokeStyle = 'rgba(255,90,95,.45)'; ctx.lineWidth = 3; ctx.setLineDash([10, 10]);
+      ctx.beginPath(); ctx.moveTo(h.x, y + s); ctx.lineTo(h.x, H); ctx.stroke();
+      ctx.setLineDash([]);
+      ctx.fillStyle = '#ff5a5f';
+      ctx.beginPath(); ctx.moveTo(h.x - s, y - s * 0.7); ctx.lineTo(h.x + s, y - s * 0.7); ctx.lineTo(h.x, y + s); ctx.closePath(); ctx.fill();
+      ctx.fillStyle = '#fff'; ctx.font = `${s}px Bungee, "Arial Black", sans-serif`;
+      ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText('!', h.x, y - s * 0.15);
+    } else {
+      ctx.translate(h.x, h.y); ctx.rotate(h.rot);
+      const r = h.r;
+      ctx.fillStyle = '#d9dce8';
+      ctx.beginPath();
+      for (let i = 0; i < 10; i++) {
+        const a = i / 10 * Math.PI * 2;
+        ctx.moveTo(Math.cos(a - 0.22) * r * 0.85, Math.sin(a - 0.22) * r * 0.85);
+        ctx.lineTo(Math.cos(a) * r * 1.55, Math.sin(a) * r * 1.55);
+        ctx.lineTo(Math.cos(a + 0.22) * r * 0.85, Math.sin(a + 0.22) * r * 0.85);
+      }
+      ctx.fill();
+      const g = ctx.createRadialGradient(-r * 0.3, -r * 0.3, r * 0.1, 0, 0, r);
+      g.addColorStop(0, '#6b7090'); g.addColorStop(1, '#1d1f2b');
+      ctx.fillStyle = g; ctx.beginPath(); ctx.arc(0, 0, r, 0, 7); ctx.fill();
+      ctx.strokeStyle = '#ff5a5f'; ctx.lineWidth = 2; ctx.stroke();
+    }
+    ctx.restore();
+  }
+}
+
+function drawGloveIcon(x, y, size, color, mirror) {
+  ctx.save();
+  ctx.translate(x, y);
+  ctx.scale((mirror ? -1 : 1) * size / 24, size / 24);
+  ctx.translate(-12, -12);
+  ctx.fillStyle = color;
+  ctx.fill(GLOVE_PATH);
+  ctx.restore();
+}
+
+function drawItems(now) {
+  for (const it of state.items) {
+    const fade = it.life - it.age < 1.5 && Math.floor(now / 150) % 2 ? 0.35 : 1; // berkedip sebelum hilang
+    const pulse = 1 + Math.sin(now / 200) * 0.06, r = it.r * pulse;
+    ctx.save();
+    ctx.globalAlpha = fade;
+    const g = ctx.createRadialGradient(it.x - r * 0.3, it.y - r * 0.3, r * 0.1, it.x, it.y, r);
+    g.addColorStop(0, 'rgba(160,220,255,.55)'); g.addColorStop(1, 'rgba(61,184,255,.25)');
+    ctx.fillStyle = g; ctx.beginPath(); ctx.arc(it.x, it.y, r, 0, 7); ctx.fill();
+    ctx.strokeStyle = '#3db8ff'; ctx.lineWidth = 3; ctx.shadowColor = '#3db8ff'; ctx.shadowBlur = 16; ctx.stroke();
+    ctx.shadowBlur = 0;
+    drawGloveIcon(it.x, it.y, r * 1.15, '#ffffff', false);
+    ctx.restore();
+  }
+}
+
+// Sarung tangan yang sedang dipakai, digambar di kedua telapak tangan
+function drawWornGloves(now) {
+  if (!body) return;
+  body.palms.forEach((p, i) => {
+    if (!p) return;
+    ctx.save();
+    ctx.shadowColor = '#2ee6a6'; ctx.shadowBlur = 18 + Math.sin(now / 150) * 6;
+    drawGloveIcon(p.x, p.y, body.sw * 0.55, '#2ee6a6', i === 1);
+    ctx.restore();
+  });
+}
+
+function drawBanner() {
+  const b = state.banner;
+  if (!b) return;
+  const k = b.age / 2.2, m = Math.min(W, H);
+  const alpha = k < 0.12 ? k / 0.12 : 1 - Math.max(0, (k - 0.7) / 0.3);
+  const scale = k < 0.12 ? 0.7 + k / 0.12 * 0.3 : 1;
+  ctx.save();
+  ctx.globalAlpha = alpha;
+  ctx.translate(W / 2, H * 0.3); ctx.scale(scale, scale);
+  ctx.font = `${m * 0.085}px Bungee, "Arial Black", sans-serif`;
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  ctx.lineWidth = 8; ctx.strokeStyle = 'rgba(11,14,31,.85)'; ctx.strokeText(b.text, 0, 0);
+  ctx.fillStyle = b.color; ctx.fillText(b.text, 0, 0);
   ctx.restore();
 }
 
@@ -670,16 +1841,7 @@ function drawFx() {
   }
 }
 
-function drawHands() {
-  for (const h of hands) {
-    ctx.save();
-    ctx.shadowColor = '#2ee6a6'; ctx.shadowBlur = 24;
-    ctx.fillStyle = 'rgba(46,230,166,.2)'; ctx.strokeStyle = '#2ee6a6'; ctx.lineWidth = 4;
-    ctx.beginPath(); ctx.arc(h.x, h.y, handR, 0, 7); ctx.fill(); ctx.stroke();
-    ctx.restore();
-  }
-}
-
+const BODY_PHASES = new Set(['menu', 'position', 'countdown', 'play', 'over']);
 function draw(now) {
   ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
   ctx.clearRect(0, 0, W, H);
@@ -687,30 +1849,59 @@ function draw(now) {
   if (shake > 0) ctx.translate(rand(-1, 1) * shake * 30, rand(-1, 1) * shake * 30);
   if (remote.hidden || remote.readyState < 2) drawBackdrop();
   else { ctx.fillStyle = 'rgba(11,14,31,.2)'; ctx.fillRect(-40, -40, W + 80, H + 80); }
-  if (landmarks) drawSkeleton();
-  for (const b of state.balloons) drawBalloon(b, now);
-  drawFx();
-  if (state.phase === 'countdown' || state.phase === 'play' || state.phase === 'menu') drawHands();
+  if (AMBIENT_PHASES.has(state.phase)) {
+    for (const b of ambient) drawBalloon(b, now);
+  } else {
+    if (state.phase === 'position') drawGuide();
+    if (state.showBody && BODY_PHASES.has(state.phase)) drawBody(now);
+    for (const b of state.balloons) drawBalloon(b, now);
+    drawHazards(now);
+    drawItems(now);
+    if (state.gloveOn && (state.phase === 'play' || state.phase === 'over')) drawWornGloves(now);
+    drawFx();
+    drawBanner();
+  }
   ctx.restore();
+  if (flash > 0) { ctx.fillStyle = `rgba(255,90,95,${flash * 0.45})`; ctx.fillRect(0, 0, W, H); }
 }
 
 /* ---------- HUD ---------- */
+const HEART = '<svg class="heart" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 21s-7.4-4.5-9.9-9.2C.5 8.5 2.4 4 6.4 4c2.3 0 3.9 1.3 5.6 3.4C13.7 5.3 15.3 4 17.6 4c4 0 5.9 4.5 4.3 7.8C19.4 16.5 12 21 12 21z"/></svg>';
+$('lives').innerHTML = HEART.repeat(LIVES);
+function renderLives(hit, gained) {
+  const l = $('lives');
+  const total = Math.max(LIVES, state.lives); // 3 hati, bertambah bila nyawa bonus didapat
+  if (l.children.length !== total) l.innerHTML = HEART.repeat(total);
+  const hearts = l.querySelectorAll('.heart');
+  hearts.forEach((h, i) => { h.classList.toggle('lost', i >= state.lives); h.classList.remove('new'); });
+  l.setAttribute('aria-label', `Nyawa ${state.lives}`);
+  if (hit) { l.classList.remove('hit'); void l.offsetWidth; l.classList.add('hit'); }
+  if (gained) { void l.offsetWidth; hearts[state.lives - 1]?.classList.add('new'); }
+}
+
 function updateHud() {
   $('score').textContent = state.score;
-  $('target').textContent = state.target;
-  $('progress').style.width = Math.min(100, state.score / state.target * 100) + '%';
-  $('timer').textContent = Math.ceil(state.timeLeft);
-  $('timerBox').classList.toggle('low', state.phase === 'play' && state.timeLeft <= 10);
+  $('bestLine').textContent = 'Terbaik ' + Math.max(bestScoreCache, state.score);
+  $('clock').textContent = `Level ${state.level} · ${fmtTime(state.elapsed)}`;
   $('kcal').textContent = state.kcal.toFixed(1);
   $('met').textContent = intensityLabel();
 
+  const paused = state.phase === 'play' && state.paused;
+  show('pauseUi', paused);
+  if (paused) {
+    const back = playerInView();
+    $('pauseSub').textContent = !source ? 'Kamera terputus. Buka lagi halaman kamera di HP.'
+      : back ? 'Siap, lanjut…' : 'Kembali ke depan kamera untuk melanjutkan.';
+    $('pauseSub').classList.toggle('ok', back);
+  }
+
   let hint = '';
-  if (!conn) hint = 'HP terputus. Buka lagi halaman kamera di HP.';
-  else if (!landmarks) hint = 'Badan belum terlihat. Mundur sedikit dari kamera HP.';
-  else if (!hands.length) hint = 'Angkat tanganmu supaya terlihat kamera.';
+  if (!source && !paused) hint = 'Kamera terputus. Buka lagi halaman kamera di HP.';
+  else if (!landmarks && state.phase === 'countdown') hint = 'Badan belum terlihat.';
   $('hint').textContent = hint;
-  show('hint', !!hint);
+  show('hint', !!hint && (state.phase === 'play' || state.phase === 'countdown'));
 }
+let bestScoreCache = bestScore();
 
 /* ---------- Suara ---------- */
 let AC = null, noiseBuf = null;
@@ -719,7 +1910,6 @@ function audio() {
   if (AC?.state === 'suspended') AC.resume();
   return AC;
 }
-audio(); // beberapa browser TV mengizinkan suara tanpa sentuhan; kalau tidak, aktif setelah tombol remote ditekan
 function beep(freq, dur, type = 'sine', vol = 0.2) {
   if (!AC || AC.state !== 'running') return;
   const o = AC.createOscillator(), g = AC.createGain(), t = AC.currentTime;
@@ -746,16 +1936,20 @@ function boom() { beep(90, 0.45, 'sawtooth', 0.3); beep(60, 0.5, 'sine', 0.4); }
 function frame(now) {
   const dt = Math.min(0.05, (now - lastT) / 1000);
   lastT = now;
-  updateHands(now);
+  detectSelf(now);
+  updateBody(now);
   updateIntensity(now, dt);
   if (state.phase === 'play') update(dt);
+  else if (state.phase === 'position') updatePositioning(dt);
+  if (AMBIENT_PHASES.has(state.phase)) updateAmbient(dt);
   updateFx(dt);
   draw(now);
-  if (state.phase === 'play' || state.phase === 'countdown') updateHud();
+  if (state.phase === 'play' || state.phase === 'countdown' || state.phase === 'over') updateHud();
   requestAnimationFrame(frame);
 }
 requestAnimationFrame(frame);
 startPeer();
+go('start');
 </script>
 </body>
 </html>

@@ -1,4 +1,7 @@
 /* Gaya bersama untuk halaman TV, kamera HP dan pilihan perangkat */
+/* Font disimpan lokal supaya tetap tampil saat main tanpa internet */
+@font-face{font-family:"Bungee";font-style:normal;font-weight:400;font-display:swap;src:url(vendor/fonts/bungee.woff2) format("woff2")}
+@font-face{font-family:"Nunito";font-style:normal;font-weight:200 1000;font-display:swap;src:url(vendor/fonts/nunito.woff2) format("woff2")}
 :root{
   --night:#0b0e1f; --panel:rgba(12,15,36,.82); --line:rgba(255,255,255,.14);
   --text:#f4f6ff; --muted:#a9b0d6;
@@ -16,6 +19,9 @@ body{background:var(--night);color:var(--text);font-family:var(--body)}
   display:flex;flex-direction:column;gap:18px;backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px)}
 h1{font-family:var(--display);font-size:clamp(30px,7vw,46px);line-height:1;margin:0;font-weight:400;text-wrap:balance}
 h1 span{color:var(--sun)}
+/* Baris judul kartu dengan logo Sandy Mind di kanan */
+.card-head{display:flex;align-items:center;justify-content:space-between;gap:16px;min-width:0}
+.brand{display:block;height:34px;width:auto;flex:none;opacity:.9}
 .lead{margin:0;color:var(--muted);line-height:1.5}
 .label{font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);font-weight:800}
 .field{display:flex;flex-direction:column;gap:8px}

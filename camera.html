@@ -4,9 +4,6 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>Balon Pecah Kamera</title>
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Bungee&family=Nunito:wght@400;700;800&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="common.css">
 <style>
 /* Layout: satu kolom untuk HP; setelah tersambung, pratinjau kamera di atas dan kontrol di bawah */
@@ -38,9 +35,9 @@ body{min-height:100%;display:grid;place-items:center;
 
 <!-- 1. Masukkan kode TV -->
 <section class="card" id="setup">
-  <h1>Kamera <span>HP</span></h1>
+  <div class="card-head"><h1>Kamera <span>HP</span></h1><img class="brand" src="img/sandymind-white.png" alt="Sandy Mind"></div>
   <p class="lead">HP ini jadi kamera untuk game di TV. Pastikan HP dan TV memakai WiFi yang sama.</p>
-  <label class="field" for="codeInput"><span class="label">Kode yang tampil di TV</span>
+  <label class="field" for="codeInput" id="codeField"><span class="label">Kode yang tampil di TV</span>
     <input id="codeInput" type="text" inputmode="numeric" maxlength="4" autocomplete="off" placeholder="0000"></label>
   <div class="field"><span class="label">Kamera</span>
     <div class="row" id="facingRow">
@@ -65,8 +62,8 @@ body{min-height:100%;display:grid;place-items:center;
   <div class="preview" id="previewBox"><video id="preview" playsinline muted autoplay></video></div>
   <div class="warn" id="rotateWarn" hidden>Putar HP ke posisi mendatar supaya gambar di TV penuh.</div>
   <div class="tvstat">
-    <div><span class="label">Skor</span><b id="tvScore">0/30</b></div>
-    <div><span class="label">Waktu</span><b id="tvTime">–</b></div>
+    <div><span class="label">Skor</span><b id="tvScore">0</b></div>
+    <div><span class="label">Nyawa</span><b id="tvLives">3</b></div>
     <div><span class="label">Kalori</span><b id="tvKcal">0.0</b></div>
   </div>
   <button class="btn" id="startBtn" type="button">Mulai game</button>
@@ -86,23 +83,29 @@ body{min-height:100%;display:grid;place-items:center;
   <div id="dimInfo"><span id="dimDot"></span><span id="dimText">Kamera aktif · ketuk untuk menyalakan layar</span></div>
 </div>
 
-<script src="https://cdn.jsdelivr.net/npm/peerjs@1.5.4/dist/peerjs.min.js"></script>
+<script src="vendor/peerjs.min.js"></script>
 <script type="module">
-const MP_VER = '0.10.14';
-const MP_BASE = `https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@${MP_VER}`;
-const MODEL_URL = 'https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_lite/float16/1/pose_landmarker_lite.task';
+// MediaPipe 0.10.14 dan model pose disimpan di vendor/ supaya bisa dipakai tanpa internet
+const MP_BASE = new URL('vendor/mediapipe', location.href).href;
+const MODEL_URL = new URL('vendor/models/pose_landmarker_lite.task', location.href).href;
 const PEER_PREFIX = 'balonpecah-tv-';
 
 const $ = id => document.getElementById(id);
 const video = $('preview');
 const params = new URLSearchParams(location.search);
 const DEMO = params.has('demo'); // untuk uji coba tanpa kamera: gambar orang-orangan bergerak
+// ?local=1: halaman ini dibuka langsung dari aplikasi TV (mode tanpa internet), sambungan lewat WiFi saja
+const LOCAL = params.has('local');
 
 let facing = 'environment', stream = null, pose = null;
-let peer = null, conn = null, mediaCall = null, tvCode = '';
+let peer = null, conn = null, mediaCall = null, localPc = null, tvCode = '';
 let running = false, lastVT = -1, frames = 0, poseOk = false, wakeLock = null;
 
 if (/^\d{4}$/.test(params.get('code') || '')) $('codeInput').value = params.get('code');
+if (LOCAL) {
+  $('codeField').hidden = true;
+  $('status').textContent = 'Mode tanpa internet: HP tersambung langsung ke TV lewat WiFi. Kode tidak diperlukan.';
+}
 try { $('weightInput').value = localStorage.getItem('balonPecahWeight') || 60; } catch {}
 
 const setStatus = (msg, kind = '') => { const s = $('status'); s.textContent = msg; s.className = 'status ' + kind; };
@@ -121,7 +124,7 @@ $('weightInput').addEventListener('change', sendSettings);
 
 async function connect() {
   tvCode = $('codeInput').value.trim();
-  if (!/^\d{4}$/.test(tvCode)) { setStatus('Masukkan 4 angka kode yang tampil di layar TV.', 'err'); return; }
+  if (!LOCAL && !/^\d{4}$/.test(tvCode)) { setStatus('Masukkan 4 angka kode yang tampil di layar TV.', 'err'); return; }
   const btn = $('connectBtn');
   btn.disabled = true;
   try {
@@ -131,7 +134,7 @@ async function connect() {
     await video.play();
     if (!DEMO && !pose) { setStatus('Memuat pendeteksi gerak tubuh… (pertama kali butuh beberapa detik)'); await initPose(); }
     setStatus('Menghubungkan ke TV…');
-    await openPeer();
+    await (LOCAL ? openLocal() : openPeer());
   } catch (err) {
     console.error(err);
     stopCamera();
@@ -207,12 +210,45 @@ async function flipCamera() {
     stream = next; video.srcObject = stream; await video.play();
     $('previewBox').classList.toggle('front', facing === 'user');
     // Ganti track video yang dikirim ke TV tanpa menyambung ulang
-    const sender = mediaCall?.peerConnection?.getSenders().find(s => s.track?.kind === 'video');
+    const pc = localPc || mediaCall?.peerConnection;
+    const sender = pc?.getSenders().find(s => s.track?.kind === 'video');
     await sender?.replaceTrack(stream.getVideoTracks()[0]);
   } catch (err) { console.error(err); }
 }
 
 /* ---------- Sambungan ke TV ---------- */
+const friendlyError = msg => { const e = new Error(msg); e.friendly = msg; return e; };
+const iceDone = (pc, ms) => new Promise(resolve => {
+  if (pc.iceGatheringState === 'complete') return resolve();
+  const t = setTimeout(resolve, ms);
+  pc.addEventListener('icegatheringstatechange', () => { if (pc.iceGatheringState === 'complete') { clearTimeout(t); resolve(); } });
+});
+
+// Mode tanpa internet: WebRTC langsung ke TV. Penawaran sambungan dikirim ke server kecil di aplikasi TV
+// (alamat yang sama dengan halaman ini), lalu TV membalas dengan jawabannya.
+async function openLocal() {
+  const pc = new RTCPeerConnection({ iceServers: [] });
+  stream.getTracks().forEach(t => pc.addTrack(t, stream));
+  const ch = pc.createDataChannel('game');
+  await pc.setLocalDescription(await pc.createOffer());
+  await iceDone(pc, 2500);
+  let res;
+  try {
+    res = await fetch('signal', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(pc.localDescription) });
+  } catch { res = null; }
+  if (!res?.ok) { pc.close(); throw friendlyError('TV tidak menjawab. Pastikan aplikasi Balon Pecah di TV sedang terbuka.'); }
+  await pc.setRemoteDescription(await res.json());
+  await new Promise((resolve, reject) => {
+    const t = setTimeout(() => { pc.close(); reject(friendlyError('Gagal tersambung ke TV. Pastikan HP dan TV memakai WiFi yang sama.')); }, 10000);
+    ch.onopen = () => { clearTimeout(t); resolve(); };
+  });
+  localPc = pc;
+  conn = { get open() { return ch.readyState === 'open'; }, send: o => { if (ch.readyState === 'open') ch.send(JSON.stringify(o)); }, close: () => pc.close() };
+  ch.onmessage = e => { try { onTvData(JSON.parse(e.data)); } catch {} };
+  ch.onclose = () => { if (running) disconnect('Koneksi ke TV terputus. Sambungkan lagi.'); };
+  sendSettings();
+}
+
 function openPeer() {
   return new Promise((resolve, reject) => {
     const fail = msg => { const e = new Error(msg); e.friendly = msg; reject(e); };
@@ -247,12 +283,14 @@ function sendSettings() {
 
 function onTvData(m) {
   if (m?.t !== 'status') return;
-  $('tvScore').textContent = `${m.score}/${m.target}`;
-  $('tvTime').textContent = m.phase === 'play' || m.phase === 'countdown' ? m.time : '–';
+  $('tvScore').textContent = m.score;
+  $('tvLives').textContent = m.lives;
   $('tvKcal').textContent = (+m.kcal).toFixed(1);
-  const busy = m.phase === 'play' || m.phase === 'countdown';
-  $('startBtn').disabled = busy;
-  $('startBtn').textContent = busy ? 'Game berjalan…' : m.phase === 'result' ? 'Main lagi' : 'Mulai game';
+  // Tombol Mulai hanya berfungsi di layar pengaturan / hasil di TV
+  const ready = m.phase === 'menu' || m.phase === 'result';
+  const busy = ['position', 'countdown', 'play', 'over'].includes(m.phase);
+  $('startBtn').disabled = !ready;
+  $('startBtn').textContent = busy ? 'Game berjalan…' : m.phase === 'result' ? 'Main lagi' : ready ? 'Mulai game' : 'Pilih mode di TV';
 }
 
 function disconnect(msg) {
@@ -261,7 +299,7 @@ function disconnect(msg) {
   $('dim').hidden = true;
   if (document.fullscreenElement) document.exitFullscreen?.().catch(() => {});
   conn?.close(); mediaCall?.close(); peer?.destroy();
-  conn = mediaCall = peer = null;
+  conn = mediaCall = peer = localPc = null;
   stopCamera();
   wakeLock?.release?.().catch(() => {}); wakeLock = null;
   $('live').hidden = true; $('setup').hidden = false;
