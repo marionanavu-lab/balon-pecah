@@ -170,6 +170,8 @@ a:focus{outline:4px solid var(--sky);outline-offset:3px}
 .btn.ig:active{box-shadow:0 2px 0 #8a2a6b}
 .ig-link{display:inline-flex;align-items:center;gap:8px;color:var(--muted);font-weight:800;font-size:15px;text-decoration:none;padding:6px 10px;border-radius:10px}
 .ig-link b{color:var(--text)}
+.cam-link{color:var(--muted);font-weight:700;font-size:14px;text-decoration:none;padding:4px 10px;border-radius:10px}
+.cam-link b{color:var(--sky)}
 .ig-link:hover b{color:#f58fbd}
 .mail{user-select:text;-webkit-user-select:text;color:var(--text);font-weight:700}
 
@@ -250,6 +252,7 @@ a:focus{outline:4px solid var(--sky);outline-offset:3px}
   .about-actions{gap:6px}
   .about-main .lead{display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}
   .ig-link{font-size:12px;padding:2px 8px}
+  .cam-link{font-size:12px;padding:2px 8px}
 
   .hud{gap:8px;padding:calc(6px + env(safe-area-inset-top,0px)) max(12px,env(safe-area-inset-right,0px)) 0 max(12px,env(safe-area-inset-left,0px))}
   .chip{background:none;border:0;padding:0;backdrop-filter:none;-webkit-backdrop-filter:none;
@@ -308,6 +311,7 @@ a:focus{outline:4px solid var(--sky);outline-offset:3px}
     <p class="lead">Pecahkan balon dengan seluruh badanmu. Gerak, pecah, bakar kalori.</p>
     <button class="btn start-btn" id="startGameBtn" type="button">Mulai</button>
     <a class="ig-link" href="https://www.instagram.com/sandy.mind/" target="_blank" rel="noopener"><svg class="ig-icon" viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="5" fill="none" stroke="currentColor" stroke-width="2"/><circle cx="12" cy="12" r="4" fill="none" stroke="currentColor" stroke-width="2"/><circle cx="17.3" cy="6.7" r="1.2" fill="currentColor"/></svg><span>Ikuti <b>@sandy.mind</b> di Instagram</span></a>
+    <a class="cam-link" id="phoneCamLink" href="camera.html">Punya TV/laptop? <b>Jadikan HP ini kamera</b></a>
   </div>
 </section>
 
@@ -1949,6 +1953,7 @@ function frame(now) {
 }
 requestAnimationFrame(frame);
 startPeer();
+if (bridge()) $('phoneCamLink').hidden = true;
 go('start');
 </script>
 </body>
