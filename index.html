@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Balon Pecah</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bungee&family=Nunito:wght@400;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="common.css">
+<style>
+/* Layout: satu kartu di tengah dengan tiga pilihan perangkat */
+body{min-height:100%;display:grid;place-items:center;
+  padding:24px max(16px,env(safe-area-inset-right,0px)) 24px max(16px,env(safe-area-inset-left,0px));
+  background:radial-gradient(ellipse at 50% 30%,#1b2150,var(--night) 70%)}
+.choices{display:flex;flex-direction:column;gap:14px}
+.choice{display:flex;flex-direction:column;gap:2px}
+.choice small{font-family:var(--body);font-size:14px;font-weight:700;opacity:.85}
+.btn.alt small{color:#08263a}
+a.btn:focus{outline:4px solid var(--sky);outline-offset:3px}
+</style>
+</head>
+<body>
+<main class="card">
+  <h1>Balon <span>Pecah</span></h1>
+  <p class="lead">Pecahkan balon dengan gerakan tubuhmu. Buka halaman ini di setiap perangkat, lalu pilih perannya.</p>
+  <div class="choices">
+    <a class="btn choice" href="tv.html" id="tvLink">Ini TV <small>Layar game. Menampilkan kode untuk HP.</small></a>
+    <a class="btn alt choice" href="camera.html">Ini HP <small>Jadi kamera. Masukkan kode dari TV.</small></a>
+    <a class="btn ghost choice" href="solo.html">Main di satu perangkat <small>Laptop atau HP dengan kamera sendiri.</small></a>
+  </div>
+</main>
+<script>document.getElementById('tvLink').focus();</script>
+</body>
+</html>

@@ -1,0 +1,344 @@
+<!doctype html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Balon Pecah Kamera</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bungee&family=Nunito:wght@400;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="common.css">
+<style>
+/* Layout: satu kolom untuk HP; setelah tersambung, pratinjau kamera di atas dan kontrol di bawah */
+body{min-height:100%;display:grid;place-items:center;
+  padding:calc(20px + env(safe-area-inset-top,0px)) max(16px,env(safe-area-inset-right,0px)) calc(20px + env(safe-area-inset-bottom,0px)) max(16px,env(safe-area-inset-left,0px))}
+.preview{position:relative;width:100%;aspect-ratio:16/9;max-width:100%;background:#000;border-radius:16px;overflow:hidden}
+.preview video{width:100%;height:100%;object-fit:contain;display:block}
+.preview.front video{transform:scaleX(-1)}
+.badges{display:flex;flex-wrap:wrap;gap:8px}
+.badge{font-size:13px;font-weight:800;padding:6px 10px;border-radius:999px;background:rgba(255,255,255,.07);color:var(--muted)}
+.badge.on{background:rgba(46,230,166,.15);color:var(--mint)}
+.badge.off{background:rgba(255,90,95,.15);color:var(--coral)}
+.tvstat{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;text-align:center}
+.tvstat div{background:rgba(255,255,255,.05);border-radius:12px;padding:10px 6px}
+.tvstat b{display:block;font-family:var(--display);font-weight:400;font-size:22px;font-variant-numeric:tabular-nums}
+.warn{background:rgba(255,194,61,.12);color:var(--sun);border-radius:12px;padding:10px 12px;font-weight:700;font-size:14px}
+.tips{margin:0;padding-left:1.2em;color:var(--muted);line-height:1.6;font-size:14px}
+#codeInput{font-family:var(--display);font-weight:400;font-size:34px;letter-spacing:.3em;text-align:center}
+.check{display:flex;gap:10px;align-items:center;font-size:14px;color:var(--muted);cursor:pointer}
+.check input{width:18px;height:18px;accent-color:var(--sun)}
+/* Layar gelap: hitam pekat (hemat baterai di layar OLED), kamera dan pengiriman tetap jalan */
+#dim{position:fixed;inset:0;z-index:50;background:#000;cursor:pointer}
+#dimInfo{position:absolute;display:flex;align-items:center;gap:8px;font-size:13px;font-weight:700;color:#3a3d4a;transition:left 1s,top 1s}
+#dimDot{width:8px;height:8px;border-radius:50%;background:#1d5c47}
+#dimDot.off{background:#5c1d20}
+</style>
+</head>
+<body>
+
+<!-- 1. Masukkan kode TV -->
+<section class="card" id="setup">
+  <h1>Kamera <span>HP</span></h1>
+  <p class="lead">HP ini jadi kamera untuk game di TV. Pastikan HP dan TV memakai WiFi yang sama.</p>
+  <label class="field" for="codeInput"><span class="label">Kode yang tampil di TV</span>
+    <input id="codeInput" type="text" inputmode="numeric" maxlength="4" autocomplete="off" placeholder="0000"></label>
+  <div class="field"><span class="label">Kamera</span>
+    <div class="row" id="facingRow">
+      <button class="seg" type="button" data-facing="environment" aria-pressed="true">Belakang</button>
+      <button class="seg" type="button" data-facing="user" aria-pressed="false">Depan</button>
+    </div>
+  </div>
+  <label class="field" for="weightInput"><span class="label">Berat badan pemain (kg)</span>
+    <input id="weightInput" type="number" min="20" max="200" value="60" inputmode="numeric"></label>
+  <label class="check" for="autoDim"><input type="checkbox" id="autoDim" checked> Gelapkan layar HP otomatis setelah tersambung</label>
+  <button class="btn" id="connectBtn" type="button">Sambungkan ke TV</button>
+  <div class="status" id="status">Kamera belakang biasanya lebih tajam. Layar HP tidak perlu dilihat saat bermain.</div>
+</section>
+
+<!-- 2. Tersambung -->
+<section class="card" id="live" hidden>
+  <div class="badges">
+    <span class="badge on" id="connBadge">Tersambung ke TV</span>
+    <span class="badge" id="poseBadge">Mencari badan…</span>
+    <span class="badge" id="fpsBadge">0 fps</span>
+  </div>
+  <div class="preview" id="previewBox"><video id="preview" playsinline muted autoplay></video></div>
+  <div class="warn" id="rotateWarn" hidden>Putar HP ke posisi mendatar supaya gambar di TV penuh.</div>
+  <div class="tvstat">
+    <div><span class="label">Skor</span><b id="tvScore">0/30</b></div>
+    <div><span class="label">Waktu</span><b id="tvTime">–</b></div>
+    <div><span class="label">Kalori</span><b id="tvKcal">0.0</b></div>
+  </div>
+  <button class="btn" id="startBtn" type="button">Mulai game</button>
+  <button class="btn alt" id="dimBtn" type="button">Gelapkan layar</button>
+  <div class="row">
+    <button class="btn ghost" id="flipBtn" type="button" style="flex:1">Ganti kamera</button>
+    <button class="btn ghost" id="stopBtn" type="button" style="flex:1">Putuskan</button>
+  </div>
+  <ol class="tips">
+    <li>Letakkan HP mendatar di bawah atau di atas TV, kamera menghadap kamu.</li>
+    <li>Jangan mengunci HP atau menekan tombol power: kamera ikut mati. Pakai "Gelapkan layar" saja. Sebaiknya sambil dicas.</li>
+  </ol>
+</section>
+
+<!-- Layar gelap: ketuk di mana saja untuk menyalakan lagi -->
+<div id="dim" hidden>
+  <div id="dimInfo"><span id="dimDot"></span><span id="dimText">Kamera aktif · ketuk untuk menyalakan layar</span></div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/peerjs@1.5.4/dist/peerjs.min.js"></script>
+<script type="module">
+const MP_VER = '0.10.14';
+const MP_BASE = `https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@${MP_VER}`;
+const MODEL_URL = 'https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_lite/float16/1/pose_landmarker_lite.task';
+const PEER_PREFIX = 'balonpecah-tv-';
+
+const $ = id => document.getElementById(id);
+const video = $('preview');
+const params = new URLSearchParams(location.search);
+const DEMO = params.has('demo'); // untuk uji coba tanpa kamera: gambar orang-orangan bergerak
+
+let facing = 'environment', stream = null, pose = null;
+let peer = null, conn = null, mediaCall = null, tvCode = '';
+let running = false, lastVT = -1, frames = 0, poseOk = false, wakeLock = null;
+
+if (/^\d{4}$/.test(params.get('code') || '')) $('codeInput').value = params.get('code');
+try { $('weightInput').value = localStorage.getItem('balonPecahWeight') || 60; } catch {}
+
+const setStatus = (msg, kind = '') => { const s = $('status'); s.textContent = msg; s.className = 'status ' + kind; };
+
+$('facingRow').addEventListener('click', e => {
+  const b = e.target.closest('.seg'); if (!b) return;
+  facing = b.dataset.facing;
+  document.querySelectorAll('#facingRow .seg').forEach(s => s.setAttribute('aria-pressed', String(s === b)));
+});
+
+$('connectBtn').addEventListener('click', connect);
+$('startBtn').addEventListener('click', () => conn?.open && conn.send({ t: 'start' }));
+$('flipBtn').addEventListener('click', flipCamera);
+$('stopBtn').addEventListener('click', () => disconnect('Sambungan diputus.'));
+$('weightInput').addEventListener('change', sendSettings);
+
+async function connect() {
+  tvCode = $('codeInput').value.trim();
+  if (!/^\d{4}$/.test(tvCode)) { setStatus('Masukkan 4 angka kode yang tampil di layar TV.', 'err'); return; }
+  const btn = $('connectBtn');
+  btn.disabled = true;
+  try {
+    setStatus('Membuka kamera…');
+    stream = await openCamera();
+    video.srcObject = stream;
+    await video.play();
+    if (!DEMO && !pose) { setStatus('Memuat pendeteksi gerak tubuh… (pertama kali butuh beberapa detik)'); await initPose(); }
+    setStatus('Menghubungkan ke TV…');
+    await openPeer();
+  } catch (err) {
+    console.error(err);
+    stopCamera();
+    setStatus(err.friendly || `Gagal: ${err.name === 'NotAllowedError' ? 'izin kamera ditolak. Izinkan kamera di pengaturan browser.' : err.message}`, 'err');
+    btn.disabled = false;
+    return;
+  }
+  btn.disabled = false;
+  $('setup').hidden = true; $('live').hidden = false;
+  $('previewBox').classList.toggle('front', facing === 'user');
+  try { wakeLock = await navigator.wakeLock?.request('screen'); } catch {}
+  running = true;
+  requestAnimationFrame(loop);
+  scheduleAutoDim(10000);
+}
+
+/* ---------- Gelapkan layar ----------
+   Browser tidak bisa mematikan layar tanpa ikut mematikan kamera, jadi layar ditutup hitam pekat.
+   Wake lock tetap aktif supaya HP tidak terkunci sendiri. */
+let dimTimer = 0, dimMoveTimer = 0;
+function scheduleAutoDim(ms) {
+  clearTimeout(dimTimer);
+  if ($('autoDim').checked) dimTimer = setTimeout(() => { if (running) setDim(true); }, ms);
+}
+function setDim(on) {
+  clearTimeout(dimTimer);
+  clearInterval(dimMoveTimer);
+  $('dim').hidden = !on;
+  if (on) {
+    moveDimInfo();
+    dimMoveTimer = setInterval(moveDimInfo, 20000); // pindahkan teks agar tidak membekas di layar
+  } else {
+    scheduleAutoDim(15000);
+  }
+}
+function moveDimInfo() {
+  const info = $('dimInfo');
+  info.style.left = Math.round(Math.random() * Math.max(0, innerWidth - info.offsetWidth - 16) + 8) + 'px';
+  info.style.top = Math.round(Math.random() * Math.max(0, innerHeight - info.offsetHeight - 16) + 8) + 'px';
+}
+$('dimBtn').addEventListener('click', () => {
+  document.documentElement.requestFullscreen?.().catch(() => {}); // sembunyikan status bar bila diizinkan
+  setDim(true);
+});
+$('dim').addEventListener('click', () => setDim(false));
+// Sentuhan di halaman menunda gelap otomatis
+document.addEventListener('pointerdown', () => { if (running && $('dim').hidden) scheduleAutoDim(15000); });
+
+/* ---------- Kamera & pose ---------- */
+async function openCamera() {
+  if (DEMO) return demoStream();
+  return navigator.mediaDevices.getUserMedia({
+    video: { facingMode: { ideal: facing }, width: { ideal: 960 }, height: { ideal: 540 }, frameRate: { ideal: 30 } },
+    audio: false,
+  });
+}
+function stopCamera() { stream?.getTracks().forEach(t => t.stop()); stream = null; }
+
+async function initPose() {
+  const { PoseLandmarker, FilesetResolver } = await import(`${MP_BASE}/vision_bundle.mjs`);
+  const files = await FilesetResolver.forVisionTasks(`${MP_BASE}/wasm`);
+  const opts = delegate => ({ baseOptions: { modelAssetPath: MODEL_URL, delegate }, runningMode: 'VIDEO', numPoses: 1 });
+  try { pose = await PoseLandmarker.createFromOptions(files, opts('GPU')); }
+  catch { pose = await PoseLandmarker.createFromOptions(files, opts('CPU')); }
+}
+
+async function flipCamera() {
+  if (DEMO) return;
+  facing = facing === 'user' ? 'environment' : 'user';
+  try {
+    const next = await openCamera();
+    stopCamera();
+    stream = next; video.srcObject = stream; await video.play();
+    $('previewBox').classList.toggle('front', facing === 'user');
+    // Ganti track video yang dikirim ke TV tanpa menyambung ulang
+    const sender = mediaCall?.peerConnection?.getSenders().find(s => s.track?.kind === 'video');
+    await sender?.replaceTrack(stream.getVideoTracks()[0]);
+  } catch (err) { console.error(err); }
+}
+
+/* ---------- Sambungan ke TV ---------- */
+function openPeer() {
+  return new Promise((resolve, reject) => {
+    const fail = msg => { const e = new Error(msg); e.friendly = msg; reject(e); };
+    peer = new Peer({ debug: 0 });
+    const timer = setTimeout(() => fail('TV tidak menjawab. Pastikan halaman TV terbuka dan kodenya benar.'), 15000);
+    peer.on('open', () => {
+      conn = peer.connect(PEER_PREFIX + tvCode, { serialization: 'json', reliable: true });
+      conn.on('open', () => {
+        clearTimeout(timer);
+        sendSettings();
+        mediaCall = peer.call(PEER_PREFIX + tvCode, stream);
+        resolve();
+      });
+      conn.on('data', onTvData);
+      conn.on('close', () => { if (running) disconnect('Koneksi ke TV terputus. Sambungkan lagi.'); });
+    });
+    peer.on('error', err => {
+      clearTimeout(timer);
+      if (err.type === 'peer-unavailable') fail('Kode TV tidak ditemukan. Cek lagi kode yang tampil di TV.');
+      else if (!running) fail(`Gagal terhubung (${err.type}). Cek koneksi internet HP.`);
+    });
+    peer.on('disconnected', () => { if (!peer.destroyed) peer.reconnect(); });
+  });
+}
+
+function sendSettings() {
+  const w = Math.round(+$('weightInput').value);
+  if (!(w >= 20 && w <= 200)) return;
+  try { localStorage.setItem('balonPecahWeight', w); } catch {}
+  if (conn?.open) conn.send({ t: 'settings', weight: w });
+}
+
+function onTvData(m) {
+  if (m?.t !== 'status') return;
+  $('tvScore').textContent = `${m.score}/${m.target}`;
+  $('tvTime').textContent = m.phase === 'play' || m.phase === 'countdown' ? m.time : '–';
+  $('tvKcal').textContent = (+m.kcal).toFixed(1);
+  const busy = m.phase === 'play' || m.phase === 'countdown';
+  $('startBtn').disabled = busy;
+  $('startBtn').textContent = busy ? 'Game berjalan…' : m.phase === 'result' ? 'Main lagi' : 'Mulai game';
+}
+
+function disconnect(msg) {
+  running = false;
+  clearTimeout(dimTimer); clearInterval(dimMoveTimer);
+  $('dim').hidden = true;
+  if (document.fullscreenElement) document.exitFullscreen?.().catch(() => {});
+  conn?.close(); mediaCall?.close(); peer?.destroy();
+  conn = mediaCall = peer = null;
+  stopCamera();
+  wakeLock?.release?.().catch(() => {}); wakeLock = null;
+  $('live').hidden = true; $('setup').hidden = false;
+  setStatus(msg, 'err');
+}
+
+/* ---------- Loop: deteksi pose lalu kirim ke TV ---------- */
+const r3 = v => Math.round(v * 1000) / 1000;
+function loop(now) {
+  if (!running) return;
+  if (video.readyState >= 2 && video.currentTime !== lastVT) {
+    lastVT = video.currentTime;
+    const lm = DEMO ? demoPose(now / 1000) : pose.detectForVideo(video, now).landmarks?.[0] || null;
+    poseOk = !!lm;
+    frames++;
+    if (conn?.open) {
+      let p = null;
+      if (lm) { p = []; for (const q of lm) p.push(r3(q.x), r3(q.y), r3(q.visibility ?? 1)); }
+      conn.send({ t: 'pose', w: video.videoWidth, h: video.videoHeight, p });
+    }
+  }
+  requestAnimationFrame(loop);
+}
+
+setInterval(() => {
+  if (!running) return;
+  $('fpsBadge').textContent = `${frames * 2} fps`;
+  frames = 0;
+  const pb = $('poseBadge');
+  pb.textContent = poseOk ? 'Badan terdeteksi' : 'Badan belum terlihat';
+  pb.className = 'badge ' + (poseOk ? 'on' : 'off');
+  $('dimDot').classList.toggle('off', !poseOk);
+  $('rotateWarn').hidden = !(video.videoHeight > video.videoWidth);
+}, 500);
+
+document.addEventListener('visibilitychange', async () => {
+  if (document.visibilityState === 'visible' && running && !wakeLock) {
+    try { wakeLock = await navigator.wakeLock?.request('screen'); } catch {}
+  }
+});
+
+/* ---------- Mode demo (?demo): orang-orangan sintetis untuk menguji tanpa kamera ---------- */
+let demoCanvas = null;
+function demoStream() {
+  demoCanvas = document.createElement('canvas');
+  demoCanvas.width = 640; demoCanvas.height = 360;
+  const draw = () => { drawDemo(performance.now() / 1000); if (stream) requestAnimationFrame(draw); };
+  const s = demoCanvas.captureStream(30);
+  requestAnimationFrame(draw);
+  return Promise.resolve(s);
+}
+function demoPose(t) {
+  const L = Array.from({ length: 33 }, () => ({ x: 0.5, y: 0.5, visibility: 0 }));
+  const set = (i, x, y) => { L[i] = { x, y, visibility: 0.99 }; };
+  const sway = Math.sin(t * 1.3) * 0.1;
+  set(0, 0.5 + sway, 0.22); set(11, 0.44 + sway, 0.35); set(12, 0.56 + sway, 0.35);
+  set(23, 0.46 + sway, 0.6); set(24, 0.54 + sway, 0.6); set(25, 0.45 + sway, 0.76); set(26, 0.55 + sway, 0.76);
+  set(27, 0.45 + sway, 0.93); set(28, 0.55 + sway, 0.93);
+  const lw = { x: 0.5 + sway + Math.cos(t * 2.2) * 0.38, y: 0.42 + Math.sin(t * 2.9) * 0.32 };
+  const rw = { x: 0.5 + sway + Math.cos(t * 1.7 + 2) * 0.38, y: 0.42 + Math.sin(t * 2.3 + 1) * 0.32 };
+  set(13, (L[11].x + lw.x) / 2, (L[11].y + lw.y) / 2); set(14, (L[12].x + rw.x) / 2, (L[12].y + rw.y) / 2);
+  set(15, lw.x, lw.y); set(16, rw.x, rw.y);
+  for (const [i, w] of [[17, lw], [19, lw], [21, lw], [18, rw], [20, rw], [22, rw]]) set(i, w.x, w.y - 0.03);
+  return L;
+}
+function drawDemo(t) {
+  const c = demoCanvas.getContext('2d'), w = demoCanvas.width, h = demoCanvas.height;
+  c.fillStyle = '#20263f'; c.fillRect(0, 0, w, h);
+  const L = demoPose(t);
+  c.strokeStyle = '#e8ecff'; c.lineWidth = 8; c.lineCap = 'round';
+  c.beginPath();
+  for (const [a, b] of [[11,12],[11,13],[13,15],[12,14],[14,16],[11,23],[12,24],[23,24],[23,25],[25,27],[24,26],[26,28]]) {
+    c.moveTo(L[a].x * w, L[a].y * h); c.lineTo(L[b].x * w, L[b].y * h);
+  }
+  c.stroke();
+  c.fillStyle = '#e8ecff'; c.beginPath(); c.arc(L[0].x * w, L[0].y * h, 22, 0, 7); c.fill();
+}
+</script>
+</body>
+</html>
