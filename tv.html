@@ -514,7 +514,7 @@ const HOLD_SECONDS = 1.5;   // lama pemain harus pas di siluet sebelum hitung mu
 const INVULNERABLE = 1.5;   // detik kebal setelah kena bom
 const BOARD_KEY = 'balonPecahTop10';
 const SETTINGS_KEY = 'balonPecahSettings';
-const WEB_VERSION = '1.1.0';  // samakan dengan versionName di android-tv/app/build.gradle
+const WEB_VERSION = '1.1.1';  // samakan dengan versionName di android-tv/app/build.gradle
 const SHARE_URL = 'https://marionanavu-lab.github.io/balon-pecah/';
 const SAWERIA_URL = 'https://saweria.co/sandymind';
 const FEEDBACK_EMAIL = 'sandymind729@gmail.com';
@@ -774,14 +774,56 @@ async function deviceHasCamera() {
 }
 const cameraCheck = deviceHasCamera().then(has => { $('selfBtn').hidden = !has; return has; });
 
+// Deteksi pose: utamakan Web Worker (thread terpisah) supaya gambar game tetap mulus di HP,
+// karena satu deteksi bisa makan ~40 ms. Bila worker tidak didukung, deteksi jalan di thread utama.
 async function loadPose() {
   const base = new URL('vendor/mediapipe', location.href).href;
+  const model = new URL('vendor/models/pose_landmarker_lite.task', location.href).href;
+  try { return await loadPoseWorker(base, model); }
+  catch (err) { console.warn('Deteksi pose di worker gagal, pakai thread utama:', err); }
   const { PoseLandmarker, FilesetResolver } = await import(base + '/vision_bundle.mjs');
   const files = await FilesetResolver.forVisionTasks(base + '/wasm');
-  const model = new URL('vendor/models/pose_landmarker_lite.task', location.href).href;
   const opts = delegate => ({ baseOptions: { modelAssetPath: model, delegate }, runningMode: 'VIDEO', numPoses: 1 });
-  try { return await PoseLandmarker.createFromOptions(files, opts('GPU')); }
-  catch { return await PoseLandmarker.createFromOptions(files, opts('CPU')); }
+  let lm;
+  try { lm = await PoseLandmarker.createFromOptions(files, opts('GPU')); }
+  catch { lm = await PoseLandmarker.createFromOptions(files, opts('CPU')); }
+  return {
+    worker: false,
+    detect(now) {
+      const l = lm.detectForVideo(remote, now).landmarks?.[0];
+      onPose({ t: 'pose', w: remote.videoWidth, h: remote.videoHeight, p: l ? l.flatMap(q => [q.x, q.y, q.visibility ?? 1]) : null });
+    },
+  };
+}
+
+// Satu frame dikirim ke worker; frame berikutnya baru dikirim setelah hasilnya kembali
+function loadPoseWorker(base, model) {
+  return new Promise((resolve, reject) => {
+    const w = new Worker('pose-worker.js');
+    let busy = false;
+    const fail = err => { clearTimeout(timer); w.terminate(); reject(err); };
+    const timer = setTimeout(() => fail(new Error('worker tidak menjawab')), 25000);
+    const api = {
+      worker: true,
+      detect(now) {
+        if (busy) return false;
+        busy = true;
+        const vw = remote.videoWidth, vh = remote.videoHeight;
+        createImageBitmap(remote)
+          .then(bitmap => w.postMessage({ type: 'frame', bitmap, ts: now, w: vw, h: vh }, [bitmap]))
+          .catch(() => { busy = false; });
+        return true;
+      },
+    };
+    w.onmessage = e => {
+      const m = e.data;
+      if (m.type === 'ready') { clearTimeout(timer); api.delegate = m.delegate; resolve(api); }
+      else if (m.type === 'error') fail(new Error(m.message));
+      else if (m.type === 'pose') { busy = false; if (source === 'self') onPose({ t: 'pose', w: m.w, h: m.h, p: m.p }); }
+    };
+    w.onerror = e => fail(new Error(e.message || 'worker error'));
+    w.postMessage({ type: 'init', base, model });
+  });
 }
 
 async function startSelfCamera() {
@@ -821,9 +863,7 @@ function stopSelfCamera() {
 
 function detectSelf(now) {
   if (source !== 'self' || !selfPose || remote.readyState < 2 || remote.currentTime === selfLastVT) return;
-  selfLastVT = remote.currentTime;
-  const lm = selfPose.detectForVideo(remote, now).landmarks?.[0];
-  onPose({ t: 'pose', w: remote.videoWidth, h: remote.videoHeight, p: lm ? lm.flatMap(q => [q.x, q.y, q.visibility ?? 1]) : null });
+  if (selfPose.detect(now) !== false) selfLastVT = remote.currentTime; // false: worker masih sibuk, coba frame berikutnya
 }
 
 function renderSource() {
