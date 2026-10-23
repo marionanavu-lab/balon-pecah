@@ -63,7 +63,7 @@ body{min-height:100%;display:grid;place-items:center;
   <div class="warn" id="rotateWarn" hidden>Putar HP ke posisi mendatar supaya gambar di TV penuh.</div>
   <div class="tvstat">
     <div><span class="label">Skor</span><b id="tvScore">0</b></div>
-    <div><span class="label">Nyawa</span><b id="tvLives">3</b></div>
+    <div><span class="label" id="tvLivesLabel">Nyawa</span><b id="tvLives">3</b></div>
     <div><span class="label">Kalori</span><b id="tvKcal">0.0</b></div>
   </div>
   <button class="btn" id="startBtn" type="button">Mulai game</button>
@@ -284,7 +284,10 @@ function sendSettings() {
 function onTvData(m) {
   if (m?.t !== 'status') return;
   $('tvScore').textContent = m.score;
-  $('tvLives').textContent = m.lives;
+  // Mode Bocil tanpa nyawa: tampilkan sisa waktu
+  const bocil = m.mode === 'bocil';
+  $('tvLivesLabel').textContent = bocil ? 'Waktu' : 'Nyawa';
+  $('tvLives').textContent = bocil ? `${Math.floor(m.timeLeft / 60)}:${String(m.timeLeft % 60).padStart(2, '0')}` : m.lives;
   $('tvKcal').textContent = (+m.kcal).toFixed(1);
   // Tombol Mulai hanya berfungsi di layar pengaturan / hasil di TV
   const ready = m.phase === 'menu' || m.phase === 'result';

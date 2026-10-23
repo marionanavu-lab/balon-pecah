@@ -23,6 +23,12 @@ body{overflow:hidden;user-select:none;-webkit-user-select:none}
 .kcal .val{color:var(--sun)}
 .met{font-size:14px;color:var(--muted);margin-top:4px;font-weight:700;font-variant-numeric:tabular-nums}
 .lives{display:flex;gap:8px;justify-content:center}
+/* Mode Bocil: hitung mundur menggantikan hati */
+.time-left{font-family:var(--display);font-size:clamp(34px,5vw,60px);line-height:1;font-variant-numeric:tabular-nums}
+.time-left.low{color:var(--coral);animation:pulse 1s infinite}
+@keyframes pulse{50%{transform:scale(1.08)}}
+#menu.bocil .settings .wide{grid-column:1/-1}
+.board-tabs .seg{min-width:0;padding:8px 10px;font-size:14px}
 .heart{width:clamp(28px,3vw,42px);height:auto;fill:var(--coral);filter:drop-shadow(0 2px 4px rgba(0,0,0,.5));transition:fill .2s,transform .2s}
 .heart.lost{fill:rgba(255,255,255,.18);transform:scale(.85)}
 .lives.hit{animation:shakeX .45s}
@@ -76,7 +82,7 @@ button:focus,input:focus{outline:4px solid var(--sky);outline-offset:3px}
 .start-btn{min-width:min(280px,80vw);font-size:28px;padding:18px 40px}
 
 /* Pilih mode */
-.tvcard{width:min(680px,100%)}
+.tvcard{width:min(860px,100%)}
 .modes{display:grid;grid-template-columns:1fr 1fr;gap:14px}
 .mode-card{display:flex;flex-direction:column;gap:8px;text-align:left;padding:20px;border-radius:18px;border:2px solid var(--sun);
   background:rgba(255,194,61,.08);color:var(--text);font:inherit;cursor:pointer}
@@ -85,6 +91,8 @@ button:focus,input:focus{outline:4px solid var(--sky);outline-offset:3px}
 .mode-desc{font-size:14px;color:var(--muted);line-height:1.45}
 .mode-tagline{font-size:12px;font-weight:800;letter-spacing:.1em;text-transform:uppercase;color:var(--sun)}
 .mode-card:disabled .mode-tagline{color:var(--muted)}
+.mode-card.bocil-card{border-color:var(--mint);background:rgba(46,230,166,.08)}
+.bocil-card .mode-tagline{color:var(--mint)}
 
 /* Layar pairing: kode besar + QR berdampingan */
 .pair{width:min(980px,100%);display:grid;grid-template-columns:1.3fr 1fr;gap:28px;align-items:center;background:var(--panel);
@@ -287,12 +295,21 @@ a:focus{outline:4px solid var(--sky);outline-offset:3px}
   .inv-text b{font-size:15px}
   .inv-text span{font-size:10px}
   .pos-sub{font-size:13px;padding:5px 12px}
+  .time-left{font-size:26px}
+  #menu.bocil .settings{grid-template-columns:1fr 1.55fr 1fr 1.2fr;gap:10px}
+  #menu.bocil .settings .wide{grid-column:auto}
+  #menu.bocil .lead{display:none}
+  #menu.bocil .seg{font-size:11.5px;padding:8px 2px;white-space:nowrap}
+  #menu.bocil .row{gap:5px;flex-wrap:nowrap}
+  .board-tabs .seg{padding:5px 6px;font-size:12px}
+  #boardLabel{display:none}
+  .board-card{gap:7px;padding:10px 16px}
   .pause-box{padding:14px 22px;gap:6px;border-radius:16px}
   .pause-title{font-size:36px}
   .pause-sub{font-size:13px}
   .pos-bar{height:6px}
 }
-@media (prefers-reduced-motion:reduce){.lives.hit,.heart.new,.inventory.pop{animation:none}}
+@media (prefers-reduced-motion:reduce){.lives.hit,.heart.new,.inventory.pop,.time-left.low{animation:none}}
 </style>
 </head>
 <body>
@@ -307,6 +324,7 @@ a:focus{outline:4px solid var(--sky);outline-offset:3px}
   </div>
   <div class="chip mid">
     <div class="lives" id="lives" aria-label="Nyawa"></div>
+    <div class="time-left" id="timeLeft" hidden>1:00</div>
     <div class="met" id="clock">0:00</div>
   </div>
   <div class="chip kcal">
@@ -346,10 +364,10 @@ a:focus{outline:4px solid var(--sky);outline-offset:3px}
         <span class="mode-name">Mode Bebas</span>
         <span class="mode-desc">Pecahkan balon dengan bagian badan mana pun. Kena bom, nyawa berkurang. Main sampai nyawa habis.</span>
       </button>
-      <button class="mode-card" type="button" disabled>
-        <span class="mode-tagline">Segera hadir</span>
-        <span class="mode-name">Mode 2</span>
-        <span class="mode-desc">Mode berikutnya sedang disiapkan.</span>
+      <button class="mode-card bocil-card" id="bocilModeBtn" type="button">
+        <span class="mode-tagline">Tanpa nyawa · 60–180 dtk</span>
+        <span class="mode-name">Mode Bocil</span>
+        <span class="mode-desc">Main santai dengan batas waktu. Bom dan bola duri hanya mengurangi skor. Kumpulkan skor sebanyak-banyaknya!</span>
       </button>
     </div>
     <div class="btnrow">
@@ -391,12 +409,12 @@ a:focus{outline:4px solid var(--sky);outline-offset:3px}
   </div>
 </section>
 
-<!-- 3. Pengaturan Mode Bebas -->
+<!-- 3. Pengaturan sebelum main (Mode Bebas / Mode Bocil) -->
 <section class="screen" id="menu" hidden>
   <div class="card tvcard">
     <div class="card-head"><div class="phone-ok" id="sourceLabel">HP tersambung</div><button class="brand-btn" type="button" aria-label="Tentang aplikasi"><img class="brand" src="img/sandymind-white.png" alt="Sandy Mind"></button></div>
-    <h1>Mode <span>Bebas</span></h1>
-    <p class="lead">Seluruh badan bisa memecahkan balon. Balon emas +3. Kena bom, satu nyawa hilang. Sebelum mulai, berdirilah pas di dalam garis siluet.</p>
+    <h1 id="menuTitle">Mode <span>Bebas</span></h1>
+    <p class="lead" id="menuLead">Seluruh badan bisa memecahkan balon. Balon emas +3. Kena bom, satu nyawa hilang. Sebelum mulai, berdirilah pas di dalam garis siluet.</p>
     <div class="settings">
       <div class="field"><span class="label">Berat badan (kg)</span>
         <div class="stepper"><button type="button" data-step="-1" aria-label="Kurangi berat">−</button><output id="weightOut">60</output><button type="button" data-step="1" aria-label="Tambah berat">+</button></div>
@@ -411,6 +429,13 @@ a:focus{outline:4px solid var(--sky);outline-offset:3px}
         <div class="row" id="bodyLines">
           <button class="seg" type="button" data-lines="off" aria-pressed="true">Sembunyi</button>
           <button class="seg" type="button" data-lines="on" aria-pressed="false">Tampil</button>
+        </div>
+      </div>
+      <div class="field wide" id="durationField" hidden><span class="label">Waktu main</span>
+        <div class="row" id="durations">
+          <button class="seg" type="button" data-sec="60" aria-pressed="true">60 dtk</button>
+          <button class="seg" type="button" data-sec="120" aria-pressed="false">120 dtk</button>
+          <button class="seg" type="button" data-sec="180" aria-pressed="false">180 dtk</button>
         </div>
       </div>
     </div>
@@ -467,7 +492,7 @@ a:focus{outline:4px solid var(--sky);outline-offset:3px}
         </form>
       </div>
       <div class="board">
-        <div class="label">10 skor tertinggi</div>
+        <div class="label" id="resultBoardLabel">10 skor tertinggi</div>
         <ol class="board-list" id="resultBoard"></ol>
       </div>
     </div>
@@ -482,7 +507,13 @@ a:focus{outline:4px solid var(--sky);outline-offset:3px}
 <section class="screen" id="boardScreen" hidden>
   <div class="card board-card">
     <div class="card-head"><h1>10 skor <span>tertinggi</span></h1><button class="brand-btn" type="button" aria-label="Tentang aplikasi"><img class="brand" src="img/sandymind-white.png" alt="Sandy Mind"></button></div>
-    <div class="label">Mode Bebas · tersimpan di perangkat ini</div>
+    <div class="row board-tabs" id="boardTabs">
+      <button class="seg" type="button" data-board="bebas" aria-pressed="true">Bebas</button>
+      <button class="seg" type="button" data-board="60" aria-pressed="false">Bocil 60</button>
+      <button class="seg" type="button" data-board="120" aria-pressed="false">Bocil 120</button>
+      <button class="seg" type="button" data-board="180" aria-pressed="false">Bocil 180</button>
+    </div>
+    <div class="label" id="boardLabel">Mode Bebas · tersimpan di perangkat ini</div>
     <ol class="board-list" id="boardList"></ol>
     <button class="btn ghost" id="boardBackBtn" type="button">Kembali</button>
   </div>
@@ -533,9 +564,10 @@ const MAX_LIVES = 5;  // batas nyawa yang bisa dikumpulkan lewat sarung tangan
 const LEVEL_SECONDS = 60;
 const HOLD_SECONDS = 1.5;   // lama pemain harus pas di siluet sebelum hitung mundur
 const INVULNERABLE = 1.5;   // detik kebal setelah kena bom
-const BOARD_KEY = 'balonPecahTop10';
+const BOARD_KEY = 'balonPecahTop10'; // Mode Bebas; Mode Bocil punya papan sendiri per pilihan waktu
+const BOCIL_DURATIONS = [60, 120, 180];
 const SETTINGS_KEY = 'balonPecahSettings';
-const WEB_VERSION = '1.1.2';  // samakan dengan versionName di android-tv/app/build.gradle
+const WEB_VERSION = '1.2.0';  // samakan dengan versionName di android-tv/app/build.gradle
 const SHARE_URL = 'https://marionanavu-lab.github.io/balon-pecah/';
 const SAWERIA_URL = 'https://saweria.co/sandymind';
 const FEEDBACK_EMAIL = 'sandymind729@gmail.com';
@@ -571,6 +603,7 @@ const BODY_SEGS = [
 const state = {
   phase: 'start', // start | mode | pair | menu | position | countdown | play | over | result | board
   framing: 'full', weight: 60, showBody: false, // garis badan disembunyikan supaya tampilan lebih nyata
+  mode: 'bebas', duration: 60, timeLeft: 60, lastTick: 0, // mode: 'bebas' (3 nyawa) | 'bocil' (tanpa nyawa, batas waktu)
   score: 0, lives: LIVES, elapsed: 0, popped: 0, escaped: 0, kcal: 0, kcalSincePop: 0, hurtUntil: -1,
   balloons: [], particles: [], texts: [], spawnIn: 0, paused: false, resumeIn: 0,
   hazards: [], bombIn: 4, nextEvent: 20, rainUntil: -1, banner: null,
@@ -582,6 +615,7 @@ try {
   if (s.weight) state.weight = clamp(Math.round(+s.weight), 20, 200);
   if (s.framing === 'full' || s.framing === 'half') state.framing = s.framing;
   if (typeof s.showBody === 'boolean') state.showBody = s.showBody;
+  if (BOCIL_DURATIONS.includes(s.duration)) state.duration = s.duration;
 } catch {}
 
 let W = 0, H = 0, DPR = 1, shake = 0, flash = 0;
@@ -922,7 +956,7 @@ function onData(m) {
 
 function sendStatus() {
   if (!conn?.open) return;
-  conn.send({ t: 'status', phase: state.phase, score: state.score, lives: state.lives,
+  conn.send({ t: 'status', phase: state.phase, score: state.score, lives: state.lives, mode: state.mode, timeLeft: Math.ceil(state.timeLeft),
     time: Math.floor(state.elapsed), kcal: +state.kcal.toFixed(2), weight: state.weight });
 }
 setInterval(sendStatus, 500);
@@ -1025,12 +1059,18 @@ function renderSettings() {
   $('weightOut').textContent = state.weight;
   document.querySelectorAll('#framing .seg').forEach(s => s.setAttribute('aria-pressed', String(s.dataset.framing === state.framing)));
   document.querySelectorAll('#bodyLines .seg').forEach(s => s.setAttribute('aria-pressed', String((s.dataset.lines === 'on') === state.showBody)));
-  try { localStorage.setItem(SETTINGS_KEY, JSON.stringify({ weight: state.weight, framing: state.framing, showBody: state.showBody })); } catch {}
+  document.querySelectorAll('#durations .seg').forEach(s => s.setAttribute('aria-pressed', String(+s.dataset.sec === state.duration)));
+  try { localStorage.setItem(SETTINGS_KEY, JSON.stringify({ weight: state.weight, framing: state.framing, showBody: state.showBody, duration: state.duration })); } catch {}
 }
 document.querySelectorAll('[data-step]').forEach(b => b.addEventListener('click', () => {
   state.weight = clamp(state.weight + +b.dataset.step, 20, 200);
   renderSettings();
 }));
+$('durations').addEventListener('click', e => {
+  const b = e.target.closest('.seg'); if (!b) return;
+  state.duration = +b.dataset.sec;
+  renderSettings();
+});
 $('bodyLines').addEventListener('click', e => {
   const b = e.target.closest('.seg'); if (!b) return;
   state.showBody = b.dataset.lines === 'on';
@@ -1045,10 +1085,41 @@ renderSettings();
 
 /* ---------- Tombol layar ---------- */
 $('startGameBtn').addEventListener('click', () => { audio(); go('mode'); });
-$('freeModeBtn').addEventListener('click', proceedToSource);
+// Pilih mode: tampilan menu dan HUD mengikuti mode
+function chooseMode(mode) { state.mode = mode; renderModeUi(); proceedToSource(); }
+function renderModeUi() {
+  const bocil = state.mode === 'bocil';
+  $('menu').classList.toggle('bocil', bocil);
+  $('menuTitle').innerHTML = bocil ? 'Mode <span>Bocil</span>' : 'Mode <span>Bebas</span>';
+  $('menuLead').textContent = bocil
+    ? 'Tanpa nyawa, main sampai waktu habis. Bom −2 skor, bola duri −1 skor. Balon emas +3. Sebelum mulai, berdirilah pas di dalam garis siluet.'
+    : 'Seluruh badan bisa memecahkan balon. Balon emas +3. Kena bom, satu nyawa hilang. Sebelum mulai, berdirilah pas di dalam garis siluet.';
+  show('durationField', bocil);
+  show('lives', !bocil);
+  show('timeLeft', bocil);
+}
+$('freeModeBtn').addEventListener('click', () => chooseMode('bebas'));
+$('bocilModeBtn').addEventListener('click', () => chooseMode('bocil'));
 $('modeBackBtn').addEventListener('click', () => go('start'));
 let boardReturn = 'mode';
-$('boardBtn').addEventListener('click', () => { boardReturn = state.phase; renderBoard($('boardList'), loadBoard()); go('board'); });
+let boardView = 'bebas'; // 'bebas' | '60' | '120' | '180'
+function renderBoardScreen() {
+  const [mode, dur] = boardView === 'bebas' ? ['bebas', 60] : ['bocil', +boardView];
+  document.querySelectorAll('#boardTabs .seg').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.board === boardView)));
+  $('boardLabel').textContent = `${boardName(mode, dur)} · tersimpan di perangkat ini`;
+  renderBoard($('boardList'), loadBoard(boardKey(mode, dur)));
+}
+$('boardTabs').addEventListener('click', e => {
+  const b = e.target.closest('.seg'); if (!b) return;
+  boardView = b.dataset.board;
+  renderBoardScreen();
+});
+$('boardBtn').addEventListener('click', () => {
+  boardReturn = state.phase;
+  boardView = state.mode === 'bocil' ? String(state.duration) : 'bebas';
+  renderBoardScreen();
+  go('board');
+});
 $('boardBackBtn').addEventListener('click', () => go(boardReturn));
 $('pairBackBtn').addEventListener('click', () => go('mode'));
 $('menuBackBtn').addEventListener('click', () => go('mode'));
@@ -1139,7 +1210,9 @@ function checkFit() {
 
 function beginPositioning() {
   if (!source) { go('pair'); return; }
+  renderModeUi();
   resetGame();
+  bestScoreCache = bestScore(); // papan skor mode/waktu yang sedang dimainkan
   fitHeld = 0;
   $('posTitle').textContent = state.framing === 'full'
     ? 'Berdiri di dalam garis, kepala sampai kaki' : 'Berdiri di dalam garis, kepala sampai pinggang';
@@ -1164,7 +1237,7 @@ function resetGame() {
   Object.assign(state, {
     score: 0, lives: LIVES, elapsed: 0, popped: 0, escaped: 0, kcal: 0, kcalSincePop: 0, hurtUntil: -1,
     balloons: [], particles: [], texts: [], spawnIn: 0.3, paused: false, resumeIn: 0,
-    hazards: [], bombIn: 4, nextEvent: 20, rainUntil: -1, banner: null,
+    hazards: [], bombIn: 4, nextEvent: 20, rainUntil: -1, banner: null, timeLeft: state.duration, lastTick: 0,
     items: [], itemIn: 25, gloves: 0, gloveOn: false, clapApart: false, level: 1,
     windReadyAt: 0, gusts: [], waveTrack: [null, null],
   });
@@ -1267,7 +1340,10 @@ function startEvent(prog) {
 }
 // Tingkat kesulitan 0..1 yang naik pelan dan makin melambat:
 // sekitar 0,22 di menit 1, 0,53 di menit 3, 0,71 di menit 5, 0,92 di menit 10
-function difficulty() { return 1 - Math.exp(-state.elapsed / 240); }
+// Mode Bocil lebih landai: maksimal sekitar 60% dari tingkat kesulitan Mode Bebas
+function difficulty() {
+  return state.mode === 'bocil' ? 0.6 * (1 - Math.exp(-state.elapsed / 200)) : 1 - Math.exp(-state.elapsed / 240);
+}
 
 function showBanner(text, color) { state.banner = { text, color, age: 0 }; }
 
@@ -1294,6 +1370,12 @@ function update(dt) {
     state.paused = false;
   }
   state.elapsed += dt;
+  if (state.mode === 'bocil') {
+    state.timeLeft -= dt;
+    const sec = Math.ceil(state.timeLeft);
+    if (sec <= 5 && sec > 0 && sec !== state.lastTick) { state.lastTick = sec; beep(880, 0.08, 'square', 0.08); }
+    if (state.timeLeft <= 0) { state.timeLeft = 0; endGame(); return; }
+  }
   const dk = currentMet() * state.weight * dt / 3600; // kkal = MET × kg × jam
   state.kcal += dk;
   state.kcalSincePop += dk;
@@ -1393,7 +1475,11 @@ function update(dt) {
     if (h.y > H + h.r * 2 || h.y < -h.r * 3) { h.dead = true; continue; }
     if (h.deflected || !hitsBody(h)) continue;
     if (state.gloveOn) deflectSpike(h);
-    else if (state.elapsed >= state.hurtUntil) { h.dead = true; loseLife(h.x, h.y, 'Kena bola duri'); }
+    else if (state.elapsed >= state.hurtUntil) {
+      h.dead = true;
+      if (state.mode === 'bocil') penalize(h.x, h.y, 1, 'Kena bola duri');
+      else loseLife(h.x, h.y, 'Kena bola duri');
+    }
   }
   state.hazards = state.hazards.filter(h => !h.dead);
 }
@@ -1458,7 +1544,7 @@ function defuseBomb(b) {
   b.dead = true;
   state.gloveOn = false;
   state.score += 2;
-  addText(b.x, b.y, '+2', '#2ee6a6', gainLife() ? 'Bom dijinakkan! Nyawa +1' : 'Bom dijinakkan!');
+  addText(b.x, b.y, '+2', '#2ee6a6', state.mode === 'bebas' && gainLife() ? 'Bom dijinakkan! Nyawa +1' : 'Bom dijinakkan!');
   burst(b.x, b.y, '#2ee6a6', 24, 1.1);
   beep(659, 0.12, 'triangle', 0.16); setTimeout(() => beep(988, 0.2, 'triangle', 0.16), 100);
   renderInventory(true);
@@ -1468,7 +1554,7 @@ function deflectSpike(h) {
   h.deflected = true;
   h.vy = -H * 1.4;
   state.gloveOn = false;
-  addText(h.x, h.y, 'Tangkis!', '#2ee6a6', gainLife() ? 'Nyawa +1' : 'Sarung tangan terpakai');
+  addText(h.x, h.y, 'Tangkis!', '#2ee6a6', state.mode === 'bebas' && gainLife() ? 'Nyawa +1' : 'Sarung tangan terpakai');
   burst(h.x, h.y, '#d9dce8', 16, 0.9);
   beep(1319, 0.08, 'square', 0.1); setTimeout(() => beep(880, 0.12, 'square', 0.08), 70);
   renderInventory(true);
@@ -1552,6 +1638,15 @@ function renderAbility() {
   $('abFill').style.height = (ready ? 100 : (1 - left / WIND_COOLDOWN) * 100) + '%';
 }
 
+// Mode Bocil: kena bom/bola duri hanya mengurangi skor (tidak bisa minus)
+function penalize(x, y, pts, label) {
+  state.score = Math.max(0, state.score - pts);
+  state.hurtUntil = state.elapsed + 0.8;
+  addText(x, y, `−${pts}`, '#ff5a5f', label);
+  burst(x, y, '#ff5a5f', 22, 1.3);
+  shake = 0.3; flash = 0.35; boom();
+}
+
 function loseLife(x, y, label) {
   state.lives--;
   state.hurtUntil = state.elapsed + INVULNERABLE;
@@ -1568,7 +1663,11 @@ function loseLife(x, y, label) {
 
 function pop(b) {
   b.dead = true;
-  if (b.type === 'bomb') { loseLife(b.x, b.y, 'Nyawa berkurang'); return; }
+  if (b.type === 'bomb') {
+    if (state.mode === 'bocil') penalize(b.x, b.y, 2, 'Bom!');
+    else loseLife(b.x, b.y, 'Nyawa berkurang');
+    return;
+  }
   const pts = b.type === 'gold' ? 3 : 1;
   state.score += pts;
   state.popped++;
@@ -1591,14 +1690,16 @@ function endGame() {
 }
 
 /* ---------- 10 skor tertinggi (disimpan di perangkat ini) ---------- */
-function loadBoard() {
+const boardKey = (mode = state.mode, duration = state.duration) => mode === 'bocil' ? `${BOARD_KEY}Bocil${duration}` : BOARD_KEY;
+const boardName = (mode = state.mode, duration = state.duration) => mode === 'bocil' ? `Mode Bocil ${duration} dtk` : 'Mode Bebas';
+function loadBoard(key = boardKey()) {
   try {
-    const list = JSON.parse(localStorage.getItem(BOARD_KEY) || '[]');
+    const list = JSON.parse(localStorage.getItem(key) || '[]');
     return Array.isArray(list) ? list.filter(e => Number.isFinite(e?.score)) : [];
   } catch { return []; }
 }
-function saveBoard(list) {
-  try { localStorage.setItem(BOARD_KEY, JSON.stringify(list)); } catch {}
+function saveBoard(list, key = boardKey()) {
+  try { localStorage.setItem(key, JSON.stringify(list)); } catch {}
 }
 const bestScore = () => loadBoard()[0]?.score || 0;
 function lastName() {
@@ -1613,6 +1714,7 @@ function recordScore() {
   const entry = {
     id: Date.now(), name: lastName() || 'Pemain', score: state.score, kcal: +state.kcal.toFixed(2),
     secs: Math.round(state.elapsed), popped: state.popped, framing: state.framing, date: new Date().toISOString(),
+    mode: state.mode, duration: state.mode === 'bocil' ? state.duration : null,
   };
   top.push(entry);
   top.sort((a, b) => b.score - a.score || a.id - b.id);
@@ -1625,11 +1727,13 @@ function renderResult(entry) {
   const top = loadBoard();
   const rank = entry ? top.findIndex(e => e.id === entry.id) + 1 : 0;
   const v = $('verdict');
-  v.textContent = rank === 1 ? 'Rekor baru!' : rank ? `Peringkat ${rank} dari 10 besar` : 'Permainan selesai';
+  v.textContent = rank === 1 ? 'Rekor baru!' : rank ? `Peringkat ${rank} dari 10 besar`
+    : state.mode === 'bocil' ? 'Waktu habis!' : 'Permainan selesai';
   v.className = 'verdict' + (rank ? ' win' : '');
   $('rScore').textContent = state.score;
   $('rPopped').textContent = state.popped;
   $('rTime').textContent = `${fmtTime(state.elapsed)} · Lv ${state.level}`;
+  $('resultBoardLabel').textContent = `10 skor tertinggi · ${boardName()}`;
   $('rKcal').textContent = `${state.kcal.toFixed(1)} kkal`;
   $('rPer').textContent = state.popped ? `${(state.kcal / state.popped).toFixed(2)} kkal` : '–';
   const tries = state.popped + state.escaped;
@@ -2053,7 +2157,13 @@ function renderLives(hit, gained) {
 function updateHud() {
   $('score').textContent = state.score;
   $('bestLine').textContent = 'Terbaik ' + Math.max(bestScoreCache, state.score);
-  $('clock').textContent = `Level ${state.level} · ${fmtTime(state.elapsed)}`;
+  if (state.mode === 'bocil') {
+    $('timeLeft').textContent = fmtTime(Math.ceil(state.timeLeft));
+    $('timeLeft').classList.toggle('low', state.phase === 'play' && state.timeLeft <= 10);
+    $('clock').textContent = `Level ${state.level}`;
+  } else {
+    $('clock').textContent = `Level ${state.level} · ${fmtTime(state.elapsed)}`;
+  }
   $('kcal').textContent = state.kcal.toFixed(1);
   $('met').textContent = intensityLabel();
   renderAbility();
