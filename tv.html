@@ -44,6 +44,18 @@ body{overflow:hidden;user-select:none;-webkit-user-select:none}
 .inventory.pop{animation:invPop .45s}
 @keyframes invPop{40%{transform:scale(1.12)}}
 .playing .conn{display:none}
+/* Kemampuan angin: kiri bawah saat bermain */
+.ability{position:fixed;left:max(24px,env(safe-area-inset-left,0px));bottom:calc(24px + env(safe-area-inset-bottom,0px));
+  display:flex;align-items:center;gap:12px;background:var(--panel);border:1px solid var(--line);border-radius:18px;padding:10px 16px 10px 10px;pointer-events:none}
+.ab-icon{width:52px;height:52px;border-radius:14px;display:grid;place-items:center;background:rgba(255,255,255,.06);color:var(--muted);position:relative;overflow:hidden}
+.ab-icon svg{width:30px;height:30px;position:relative}
+.ab-fill{position:absolute;left:0;right:0;bottom:0;height:0;background:rgba(61,184,255,.25)}
+.ab-text{display:flex;flex-direction:column;gap:2px}
+.ab-text b{font-family:var(--display);font-weight:400;font-size:20px;line-height:1}
+.ab-text span{font-size:13px;font-weight:700;color:var(--muted)}
+.ability.ready{border-color:var(--sky)}
+.ability.ready .ab-icon{background:rgba(61,184,255,.2);color:var(--sky)}
+.ability.ready .ab-text span{color:var(--sky)}
 .hint{position:fixed;left:50%;bottom:calc(24px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:var(--panel);
   border:1px solid var(--line);padding:12px 20px;border-radius:999px;font-weight:700;font-size:18px;max-width:calc(100% - 48px);text-align:center;pointer-events:none}
 .conn{position:fixed;right:max(24px,env(safe-area-inset-right,0px));bottom:calc(24px + env(safe-area-inset-bottom,0px));font-size:14px;font-weight:800;
@@ -264,6 +276,11 @@ a:focus{outline:4px solid var(--sky);outline-offset:3px}
   .met{font-size:10px;margin-top:0;color:var(--text);opacity:.85}
   .hint{font-size:13px;padding:6px 12px;bottom:calc(8px + env(safe-area-inset-bottom,0px))}
   .conn{display:none} /* sumber kamera sudah tertulis di menu */
+  .ability{left:max(10px,env(safe-area-inset-left,0px));bottom:calc(8px + env(safe-area-inset-bottom,0px));padding:5px 10px 5px 5px;gap:8px;border-radius:12px}
+  .ab-icon{width:32px;height:32px;border-radius:9px}
+  .ab-icon svg{width:20px;height:20px}
+  .ab-text b{font-size:14px}
+  .ab-text span{font-size:10px}
   .inventory{right:max(10px,env(safe-area-inset-right,0px));bottom:calc(8px + env(safe-area-inset-bottom,0px));padding:5px 10px 5px 5px;gap:8px;border-radius:12px}
   .inv-icon{width:32px;height:32px;border-radius:9px}
   .inv-icon svg{width:22px;height:22px}
@@ -299,6 +316,10 @@ a:focus{outline:4px solid var(--sky);outline-offset:3px}
   </div>
 </div>
 <div class="hint" id="hint" hidden></div>
+<div class="ability" id="ability" hidden>
+  <div class="ab-icon"><i class="ab-fill" id="abFill"></i><svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M3 8h11a3 3 0 1 0-3-3"/><path d="M3 12h16a3 3 0 1 1-3 3"/><path d="M3 16h7"/></svg></div>
+  <div class="ab-text"><b id="abTitle">Angin siap</b><span id="abHint">Lambaikan tangan 3×</span></div>
+</div>
 <div class="inventory" id="inventory" hidden>
   <div class="inv-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 21v-6.3L4.2 10.9a1.6 1.6 0 0 1 2.5-2L8 10.3V4.6a1.5 1.5 0 0 1 3 0V10h.6V3.4a1.5 1.5 0 0 1 3 0V10h.6V4.4a1.5 1.5 0 0 1 3 0V10.6h.5V7.3a1.5 1.5 0 0 1 3 0v8.2c0 3-2.3 5.5-5.3 5.5H7z"/></svg></div>
   <div class="inv-text"><b id="invCount">Sarung tangan ×1</b><span id="invHint">Tepuk tangan untuk memakai</span></div>
@@ -514,7 +535,7 @@ const HOLD_SECONDS = 1.5;   // lama pemain harus pas di siluet sebelum hitung mu
 const INVULNERABLE = 1.5;   // detik kebal setelah kena bom
 const BOARD_KEY = 'balonPecahTop10';
 const SETTINGS_KEY = 'balonPecahSettings';
-const WEB_VERSION = '1.1.1';  // samakan dengan versionName di android-tv/app/build.gradle
+const WEB_VERSION = '1.1.2';  // samakan dengan versionName di android-tv/app/build.gradle
 const SHARE_URL = 'https://marionanavu-lab.github.io/balon-pecah/';
 const SAWERIA_URL = 'https://saweria.co/sandymind';
 const FEEDBACK_EMAIL = 'sandymind729@gmail.com';
@@ -534,6 +555,7 @@ const COLORS = ['#ff5a5f', '#3db8ff', '#2ee6a6', '#a77bff', '#ff8a3d', '#ff6fb5'
 const GOLD = '#ffc23d';
 const GLOVE_PATH = new Path2D('M7 21v-6.3L4.2 10.9a1.6 1.6 0 0 1 2.5-2L8 10.3V4.6a1.5 1.5 0 0 1 3 0V10h.6V3.4a1.5 1.5 0 0 1 3 0V10h.6V4.4a1.5 1.5 0 0 1 3 0V10.6h.5V7.3a1.5 1.5 0 0 1 3 0v8.2c0 3-2.3 5.5-5.3 5.5H7z'); // ikon sarung tangan 24×24
 const MAX_GLOVES = 2;
+const WIND_COOLDOWN = 8;  // detik sebelum angin bisa dipakai lagi
 // Titik pose MediaPipe: 0 hidung, 7/8 telinga, 11/12 bahu, 13/14 siku, 15/16 pergelangan tangan, 17-22 jari,
 // 23/24 pinggul, 25/26 lutut, 27/28 pergelangan kaki, 29/30 tumit, 31/32 ujung kaki
 const MOVE_PTS = [0, 15, 16, 23, 24, 27, 28];
@@ -553,6 +575,7 @@ const state = {
   balloons: [], particles: [], texts: [], spawnIn: 0, paused: false, resumeIn: 0,
   hazards: [], bombIn: 4, nextEvent: 20, rainUntil: -1, banner: null,
   items: [], itemIn: 25, gloves: 0, gloveOn: false, clapApart: false, level: 1,
+  windReadyAt: 0, gusts: [], waveTrack: [null, null],
 };
 try {
   const s = JSON.parse(localStorage.getItem(SETTINGS_KEY) || '{}');
@@ -589,6 +612,7 @@ function go(phase) {
   for (const s of Object.values(SCREEN_OF)) show(s, s === id);
   show('positionUi', phase === 'position');
   if (phase !== 'play') show('pauseUi', false);
+  if (phase !== 'play' && phase !== 'over') show('ability', false);
   document.body.classList.toggle('playing', phase === 'play' || phase === 'over' || phase === 'countdown' || phase === 'position');
   renderInventory(false);
   show('hud', phase === 'countdown' || phase === 'play' || phase === 'over');
@@ -1142,9 +1166,11 @@ function resetGame() {
     balloons: [], particles: [], texts: [], spawnIn: 0.3, paused: false, resumeIn: 0,
     hazards: [], bombIn: 4, nextEvent: 20, rainUntil: -1, banner: null,
     items: [], itemIn: 25, gloves: 0, gloveOn: false, clapApart: false, level: 1,
+    windReadyAt: 0, gusts: [], waveTrack: [null, null],
   });
   renderLives(false);
   renderInventory(false);
+  renderAbility();
   updateHud();
 }
 
@@ -1302,6 +1328,9 @@ function update(dt) {
   }
   updateItems(dt);
   if (detectClap() && state.gloves > 0 && !state.gloveOn) activateGlove();
+  if (detectWave() && state.elapsed >= state.windReadyAt) blowWind();
+  for (const g of state.gusts) g.age += dt;
+  state.gusts = state.gusts.filter(g => g.age < 0.9);
 
   const hurt = state.elapsed < state.hurtUntil;
   const target = playerCenter();
@@ -1316,15 +1345,25 @@ function update(dt) {
     } else if (b.type === 'bomb') {
       // Mendekat pelan ke tengah badan pemain sambil sedikit bergoyang. Saat sudah dekat arahnya dikunci,
       // jadi pemain bisa menghindar dengan bergeser dan bom lewat lalu keluar layar.
+      // Terkena angin: meluncur menjauh sambil melambat dan memantul di tepi layar, lalu kembali mendekat.
       const dx = target.x - b.x, dy = target.y - b.y, d = Math.hypot(dx, dy) || 1;
-      if (d > m * 0.3 || !b.vx && !b.vy) {
+      const pushed = b.pushUntil > state.elapsed;
+      if (pushed) {
+        const drag = Math.exp(-dt * 1.6);
+        b.vx *= drag; b.vy *= drag;
+      } else if (d > m * 0.3 || !b.vx && !b.vy) {
         const k = Math.min(1, dt * 0.8);
         b.vx += (dx / d * b.speed - b.vx) * k;
         b.vy += (dy / d * b.speed - b.vy) * k;
       }
       b.x += b.vx * dt;
       b.y += (b.vy + Math.sin(b.age * 3 + b.phase) * b.r * 0.4) * dt;
-      if (b.x < -b.r * 2 || b.x > W + b.r * 2 || b.y < -b.r * 2 || b.y > H + b.r * 2) b.dead = true;
+      if (pushed) {
+        if (b.x < b.r) { b.x = b.r; b.vx = Math.abs(b.vx); }
+        if (b.x > W - b.r) { b.x = W - b.r; b.vx = -Math.abs(b.vx); }
+        if (b.y < top + b.r) { b.y = top + b.r; b.vy = Math.abs(b.vy); }
+        if (b.y > H - b.r) { b.y = H - b.r; b.vy = -Math.abs(b.vy); }
+      } else if (b.x < -b.r * 2 || b.x > W + b.r * 2 || b.y < -b.r * 2 || b.y > H + b.r * 2) b.dead = true;
     } else if (b.falling) {
       b.x += b.vx * dt; b.y += b.vy * dt;
       if (b.y > H + b.r * 3) { b.dead = true; state.escaped++; }
@@ -1453,6 +1492,64 @@ function renderInventory(bump) {
     ? 'Sekali pakai: bom atau bola duri' + (state.gloves ? ` · cadangan ${state.gloves}` : '')
     : 'Tepuk tangan untuk memakai';
   if (bump) { inv.classList.remove('pop'); void inv.offsetWidth; inv.classList.add('pop'); }
+}
+
+/* ---------- Angin ----------
+   Angkat salah satu tangan lalu lambaikan kiri-kanan 3 kali (sekitar 6 ayunan dalam 2,2 detik).
+   Semua bom terdorong menjauh, lalu perlahan kembali mendekat sampai waktunya habis. */
+function detectWave() {
+  if (!body) return false;
+  const P = body.P, sw = body.sw, shY = (P[11].y + P[12].y) / 2;
+  const hyst = sw * 0.12; // abaikan getaran kecil
+  for (let i = 0; i < 2; i++) {
+    const p = body.palms[i];
+    if (!p || p.y > shY + sw * 0.35) { state.waveTrack[i] = null; continue; } // tangan harus terangkat
+    const tr = state.waveTrack[i] ??= { ext: p.x, dir: 0, turnX: p.x, strokes: [] };
+    if (tr.dir === 0) {
+      if (Math.abs(p.x - tr.ext) > hyst) { tr.dir = Math.sign(p.x - tr.ext); tr.ext = p.x; }
+    } else if ((p.x - tr.ext) * tr.dir > 0) {
+      tr.ext = p.x; // masih searah: catat titik terjauh
+    } else if (Math.abs(p.x - tr.ext) > hyst) {
+      // berbalik arah: hitung sebagai satu ayunan bila cukup lebar
+      if (Math.abs(tr.ext - tr.turnX) > sw * 0.35) tr.strokes.push(state.elapsed);
+      tr.turnX = tr.ext; tr.ext = p.x; tr.dir = -tr.dir;
+    }
+    tr.strokes = tr.strokes.filter(t => state.elapsed - t < 2.2);
+    if (tr.strokes.length >= 5) { state.waveTrack = [null, null]; return true; }
+  }
+  return false;
+}
+
+function blowWind() {
+  state.windReadyAt = state.elapsed + WIND_COOLDOWN;
+  const c = playerCenter(), m = Math.min(W, H), far = Math.max(W, H);
+  let pushed = 0;
+  for (const b of state.balloons) {
+    if (b.type !== 'bomb' || b.escaping || b.dead) continue;
+    const dx = b.x - c.x, dy = b.y - c.y, d = Math.hypot(dx, dy) || 1;
+    const strength = m * 1.8 * (1 - Math.min(0.6, d / far)); // makin dekat makin kuat
+    b.vx = dx / d * strength; b.vy = dy / d * strength;
+    b.pushUntil = state.elapsed + 1.4;
+    pushed++;
+  }
+  state.gusts.push({ x: c.x, y: c.y, age: 0 });
+  showBanner(pushed ? 'Angin!' : 'Angin! (tak ada bom)', '#3db8ff');
+  windSound();
+}
+
+function renderAbility() {
+  const el = $('ability');
+  const playing = state.phase === 'play' || state.phase === 'over';
+  el.hidden = !playing;
+  if (!playing) return;
+  const left = Math.max(0, state.windReadyAt - state.elapsed);
+  const ready = left <= 0;
+  el.classList.toggle('ready', ready);
+  const title = ready ? 'Angin siap' : 'Angin';
+  const hint = ready ? 'Lambaikan tangan 3×' : `Siap dalam ${Math.ceil(left)} dtk`;
+  if ($('abTitle').textContent !== title) $('abTitle').textContent = title;
+  if ($('abHint').textContent !== hint) $('abHint').textContent = hint;
+  $('abFill').style.height = (ready ? 100 : (1 - left / WIND_COOLDOWN) * 100) + '%';
 }
 
 function loseLife(x, y, label) {
@@ -1800,6 +1897,35 @@ function drawHazards(now) {
   }
 }
 
+// Hembusan angin: lingkaran putus-putus yang melebar dan garis-garis angin keluar dari badan pemain
+function drawGusts() {
+  const far = Math.max(W, H);
+  for (const g of state.gusts) {
+    const k = g.age / 0.9, a = 1 - k;
+    ctx.save();
+    ctx.strokeStyle = `rgba(200,235,255,${a * 0.8})`;
+    ctx.lineCap = 'round';
+    for (let ring = 0; ring < 3; ring++) {
+      const r = (k * 1.1 + ring * 0.12) * far * 0.6;
+      ctx.lineWidth = 6 * a;
+      ctx.setLineDash([r * 0.25, r * 0.12]);
+      ctx.lineDashOffset = -g.age * 400;
+      ctx.beginPath(); ctx.arc(g.x, g.y, r, 0, Math.PI * 2); ctx.stroke();
+    }
+    ctx.setLineDash([]);
+    ctx.lineWidth = 3 * a;
+    for (let i = 0; i < 14; i++) {
+      const ang = i / 14 * Math.PI * 2 + 0.2, r0 = k * far * 0.45, r1 = r0 + far * 0.12;
+      ctx.beginPath();
+      ctx.moveTo(g.x + Math.cos(ang) * r0, g.y + Math.sin(ang) * r0);
+      ctx.quadraticCurveTo(g.x + Math.cos(ang + 0.15) * (r0 + r1) / 2, g.y + Math.sin(ang + 0.15) * (r0 + r1) / 2,
+        g.x + Math.cos(ang) * r1, g.y + Math.sin(ang) * r1);
+      ctx.stroke();
+    }
+    ctx.restore();
+  }
+}
+
 function drawGloveIcon(x, y, size, color, mirror) {
   ctx.save();
   ctx.translate(x, y);
@@ -1901,6 +2027,7 @@ function draw(now) {
     for (const b of state.balloons) drawBalloon(b, now);
     drawHazards(now);
     drawItems(now);
+    drawGusts();
     if (state.gloveOn && (state.phase === 'play' || state.phase === 'over')) drawWornGloves(now);
     drawFx();
     drawBanner();
@@ -1929,6 +2056,7 @@ function updateHud() {
   $('clock').textContent = `Level ${state.level} · ${fmtTime(state.elapsed)}`;
   $('kcal').textContent = state.kcal.toFixed(1);
   $('met').textContent = intensityLabel();
+  renderAbility();
 
   const paused = state.phase === 'play' && state.paused;
   show('pauseUi', paused);
@@ -1973,6 +2101,22 @@ function popSound(gold) {
   src.buffer = noiseBuf; f.type = 'bandpass'; f.frequency.value = rand(1600, 2600); g.gain.value = 0.7;
   src.connect(f).connect(g).connect(AC.destination); src.start();
   if (gold) { beep(1320, 0.15, 'triangle', 0.15); setTimeout(() => beep(1760, 0.2, 'triangle', 0.15), 80); }
+}
+// Suara angin: desis yang naik lalu mereda
+let windBuf = null;
+function windSound() {
+  if (!AC || AC.state !== 'running') return;
+  if (!windBuf) {
+    const len = AC.sampleRate * 0.9;
+    windBuf = AC.createBuffer(1, len, AC.sampleRate);
+    const d = windBuf.getChannelData(0);
+    for (let i = 0; i < len; i++) d[i] = Math.random() * 2 - 1;
+  }
+  const src = AC.createBufferSource(), f = AC.createBiquadFilter(), g = AC.createGain(), t = AC.currentTime;
+  src.buffer = windBuf; f.type = 'bandpass'; f.Q.value = 0.8;
+  f.frequency.setValueAtTime(300, t); f.frequency.exponentialRampToValueAtTime(1400, t + 0.35); f.frequency.exponentialRampToValueAtTime(500, t + 0.9);
+  g.gain.setValueAtTime(0.001, t); g.gain.exponentialRampToValueAtTime(0.6, t + 0.15); g.gain.exponentialRampToValueAtTime(0.001, t + 0.9);
+  src.connect(f).connect(g).connect(AC.destination); src.start(t); src.stop(t + 0.9);
 }
 function boom() { beep(90, 0.45, 'sawtooth', 0.3); beep(60, 0.5, 'sine', 0.4); }
 
