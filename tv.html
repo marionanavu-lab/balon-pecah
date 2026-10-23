@@ -50,6 +50,17 @@ body{overflow:hidden;user-select:none;-webkit-user-select:none}
 .inventory.pop{animation:invPop .45s}
 @keyframes invPop{40%{transform:scale(1.12)}}
 .playing .conn{display:none}
+/* Kursor tangan untuk memilih tombol tanpa menyentuh layar */
+.hand-cursor{position:fixed;left:0;top:0;width:72px;height:72px;margin:-36px 0 0 -36px;pointer-events:none;z-index:60;will-change:transform}
+.hand-cursor svg{position:absolute;inset:0;width:100%;height:100%}
+.hc-bg{fill:rgba(11,14,31,.55);stroke:rgba(255,255,255,.35);stroke-width:4}
+.hc-ring{fill:none;stroke:var(--mint);stroke-width:6;stroke-linecap:round;transform:rotate(-90deg);transform-origin:50% 50%}
+.hand-cursor svg.hc-icon{inset:24%;width:52%;height:52%}
+.hc-hand{fill:#fff}
+.hand-cursor.fire .hc-bg{fill:rgba(46,230,166,.5)}
+button.hand-hover{outline:4px solid var(--mint)!important;outline-offset:4px;box-shadow:0 0 22px rgba(46,230,166,.55)}
+.hand-hint{position:fixed;left:50%;bottom:calc(10px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);z-index:60;pointer-events:none;
+  background:var(--panel);border:1px solid var(--line);border-radius:999px;padding:6px 14px;font-size:14px;font-weight:700;color:var(--muted);white-space:nowrap}
 /* Kemampuan angin: kiri bawah saat bermain */
 .ability{position:fixed;left:max(24px,env(safe-area-inset-left,0px));bottom:calc(24px + env(safe-area-inset-bottom,0px));
   display:flex;align-items:center;gap:12px;background:var(--panel);border:1px solid var(--line);border-radius:18px;padding:10px 16px 10px 10px;pointer-events:none}
@@ -296,6 +307,8 @@ a:focus{outline:4px solid var(--sky);outline-offset:3px}
   .inv-text span{font-size:10px}
   .pos-sub{font-size:13px;padding:5px 12px}
   .time-left{font-size:26px}
+  .hand-cursor{width:52px;height:52px;margin:-26px 0 0 -26px}
+  .hand-hint{font-size:11px;padding:3px 10px;bottom:calc(3px + env(safe-area-inset-bottom,0px))}
   #menu.bocil .settings{grid-template-columns:1fr 1.55fr 1fr 1.2fr;gap:10px}
   #menu.bocil .settings .wide{grid-column:auto}
   #menu.bocil .lead{display:none}
@@ -555,6 +568,12 @@ a:focus{outline:4px solid var(--sky);outline-offset:3px}
 
 <div class="conn" id="connBadge" hidden>HP tersambung</div>
 
+<div class="hand-cursor" id="handCursor" hidden>
+  <svg viewBox="0 0 64 64" aria-hidden="true"><circle class="hc-bg" cx="32" cy="32" r="27"/><circle class="hc-ring" id="handRing" cx="32" cy="32" r="27" stroke-dasharray="169.6" stroke-dashoffset="169.6"/></svg>
+  <svg class="hc-icon" viewBox="0 0 24 24" aria-hidden="true"><path class="hc-hand" d="M7 21v-6.3L4.2 10.9a1.6 1.6 0 0 1 2.5-2L8 10.3V4.6a1.5 1.5 0 0 1 3 0V10h.6V3.4a1.5 1.5 0 0 1 3 0V10h.6V4.4a1.5 1.5 0 0 1 3 0V10.6h.5V7.3a1.5 1.5 0 0 1 3 0v8.2c0 3-2.3 5.5-5.3 5.5H7z"/></svg>
+</div>
+<div class="hand-hint" id="handHint" hidden>Angkat tangan ke depan dada untuk memilih tombol</div>
+
 <script src="vendor/peerjs.min.js"></script>
 <script src="vendor/qrcode.min.js"></script>
 <script>
@@ -567,7 +586,7 @@ const INVULNERABLE = 1.5;   // detik kebal setelah kena bom
 const BOARD_KEY = 'balonPecahTop10'; // Mode Bebas; Mode Bocil punya papan sendiri per pilihan waktu
 const BOCIL_DURATIONS = [60, 120, 180];
 const SETTINGS_KEY = 'balonPecahSettings';
-const WEB_VERSION = '1.2.0';  // samakan dengan versionName di android-tv/app/build.gradle
+const WEB_VERSION = '1.3.0';  // samakan dengan versionName di android-tv/app/build.gradle
 const SHARE_URL = 'https://marionanavu-lab.github.io/balon-pecah/';
 const SAWERIA_URL = 'https://saweria.co/sandymind';
 const FEEDBACK_EMAIL = 'sandymind729@gmail.com';
@@ -2230,6 +2249,81 @@ function windSound() {
 }
 function boom() { beep(90, 0.45, 'sawtooth', 0.3); beep(60, 0.5, 'sine', 0.4); }
 
+/* ---------- Pilih tombol dengan tangan ----------
+   Di layar menu, telapak tangan menggerakkan kursor. Area di depan dada (bahu sampai perut) dipetakan ke seluruh layar,
+   jadi tangan yang tergantung santai di samping badan tidak ikut memilih. Tahan kursor di tombol HAND_DWELL detik
+   untuk menekannya. Setelah menekan, kursor harus bergeser dulu sebelum bisa menekan lagi, supaya tombol di layar
+   berikutnya tidak ikut tertekan (kecuali tombol +/- yang boleh diulang dengan menahan tangan). */
+const HAND_DWELL = 1.2;
+const HAND_PHASES = new Set(['mode', 'pair', 'menu', 'result', 'board', 'about']);
+const RING_LEN = 169.6; // keliling lingkaran progres (2πr, r = 27)
+const hand = { x: 0, y: 0, shown: false, target: null, held: 0, lockPos: null, repeat: false };
+
+function handPoint() {
+  if (!body?.palms || ![11, 12].every(visible)) return null;
+  const P = body.P, sw = body.sw;
+  const cx = (P[11].x + P[12].x) / 2, shY = (P[11].y + P[12].y) / 2;
+  let best = null;
+  for (const p of body.palms) {
+    if (!p) continue;
+    const nx = (p.x - (cx - 1.5 * sw)) / (3 * sw);
+    const ny = (p.y - (shY - 1.0 * sw)) / (2.4 * sw);
+    if (nx < -0.05 || nx > 1.05 || ny < -0.05 || ny > 1.05) continue; // di luar area jangkauan
+    if (!best || ny < best.ny) best = { nx, ny }; // tangan yang lebih tinggi yang dipakai
+  }
+  return best && { x: clamp(best.nx, 0, 1) * W, y: clamp(best.ny, 0, 1) * H };
+}
+
+function setHandTarget(t) {
+  if (t === hand.target) return;
+  hand.target?.classList.remove('hand-hover');
+  t?.classList.add('hand-hover');
+  hand.target = t; hand.held = 0; hand.repeat = false;
+}
+function setHandRing(progress) {
+  $('handRing').setAttribute('stroke-dashoffset', String(RING_LEN * (1 - clamp(progress, 0, 1))));
+}
+
+function updateHandCursor(dt) {
+  const cursor = $('handCursor');
+  const tracking = HAND_PHASES.has(state.phase) && !!landmarks && !!body;
+  const pt = tracking ? handPoint() : null;
+  if (!pt) {
+    cursor.hidden = true; hand.shown = false; hand.lockPos = null;
+    setHandTarget(null); setHandRing(0);
+    $('handHint').hidden = !tracking;
+    return;
+  }
+  $('handHint').hidden = true;
+  if (!hand.shown) { hand.x = pt.x; hand.y = pt.y; hand.shown = true; }
+  const k = Math.min(1, dt * 10); // haluskan gerak kursor (pose datang ~15x/detik)
+  hand.x += (pt.x - hand.x) * k; hand.y += (pt.y - hand.y) * k;
+  cursor.hidden = false;
+  cursor.style.transform = `translate(${hand.x}px,${hand.y}px)`;
+
+  const hit = document.elementFromPoint(hand.x, hand.y)?.closest('button:not([disabled])');
+  setHandTarget(hit && hit.closest('.screen:not([hidden])') ? hit : null);
+  const t = hand.target;
+  if (hand.lockPos) {
+    if (Math.hypot(hand.x - hand.lockPos.x, hand.y - hand.lockPos.y) < Math.min(W, H) * 0.12) { hand.held = 0; setHandRing(0); return; }
+    hand.lockPos = null; // kursor sudah bergeser: boleh memilih lagi
+  }
+  if (!t) { setHandRing(0); return; }
+  hand.held += dt;
+  const dwell = hand.repeat ? 0.5 : HAND_DWELL;
+  setHandRing(hand.held / dwell);
+  if (hand.held >= dwell) {
+    hand.held = 0;
+    hand.repeat = !!t.dataset.step;     // +/- berat badan boleh diulang dengan menahan tangan
+    hand.lockPos = hand.repeat ? null : { x: hand.x, y: hand.y };
+    setHandRing(0);
+    cursor.classList.remove('fire'); void cursor.offsetWidth; cursor.classList.add('fire');
+    setTimeout(() => cursor.classList.remove('fire'), 250);
+    audio(); beep(1047, 0.08, 'triangle', 0.14);
+    t.click();
+  }
+}
+
 /* ---------- Loop utama ---------- */
 function frame(now) {
   const dt = Math.min(0.05, (now - lastT) / 1000);
@@ -2240,6 +2334,7 @@ function frame(now) {
   if (state.phase === 'play') update(dt);
   else if (state.phase === 'position') updatePositioning(dt);
   if (AMBIENT_PHASES.has(state.phase)) updateAmbient(dt);
+  updateHandCursor(dt);
   updateFx(dt);
   draw(now);
   if (state.phase === 'play' || state.phase === 'countdown' || state.phase === 'over') updateHud();
