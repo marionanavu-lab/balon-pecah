@@ -143,6 +143,13 @@ button:focus,input:focus{outline:4px solid var(--sky);outline-offset:3px}
 
 /* Jeda saat pemain keluar dari kamera */
 .pause{position:fixed;inset:0;display:grid;place-items:center;pointer-events:none;background:rgba(11,14,31,.55)}
+/* Peringatan sebelum jeda: pemain tidak terbaca, permainan masih berjalan */
+.lost-warn{position:fixed;left:50%;top:22%;transform:translateX(-50%);z-index:40;pointer-events:none;display:flex;flex-direction:column;
+  align-items:center;gap:4px;text-align:center;background:var(--panel);border:2px solid var(--coral);border-radius:18px;padding:12px 26px;
+  box-shadow:0 0 24px rgba(255,90,95,.35);animation:warnPulse 1s infinite}
+.lost-warn b{font-family:var(--display);font-weight:400;font-size:clamp(20px,2.6vw,32px);color:var(--coral)}
+.lost-warn span{font-weight:800;font-size:clamp(13px,1.6vw,18px)}
+@keyframes warnPulse{50%{box-shadow:0 0 6px rgba(255,90,95,.2)}}
 .pause-box{display:flex;flex-direction:column;align-items:center;gap:10px;text-align:center;background:var(--panel);border:1px solid var(--line);
   border-radius:24px;padding:24px 36px;max-width:calc(100% - 32px)}
 .pause-title{font-family:var(--display);font-size:clamp(36px,6vw,72px);color:var(--sun);line-height:1}
@@ -318,11 +325,12 @@ a:focus{outline:4px solid var(--sky);outline-offset:3px}
   #boardLabel{display:none}
   .board-card{gap:7px;padding:10px 16px}
   .pause-box{padding:14px 22px;gap:6px;border-radius:16px}
+  .lost-warn{top:20%;padding:7px 16px;border-radius:12px}
   .pause-title{font-size:36px}
   .pause-sub{font-size:13px}
   .pos-bar{height:6px}
 }
-@media (prefers-reduced-motion:reduce){.lives.hit,.heart.new,.inventory.pop,.time-left.low{animation:none}}
+@media (prefers-reduced-motion:reduce){.lost-warn,.lives.hit,.heart.new,.inventory.pop,.time-left.low{animation:none}}
 </style>
 </head>
 <body>
@@ -473,6 +481,11 @@ a:focus{outline:4px solid var(--sky);outline-offset:3px}
   </div>
 </div>
 
+<div class="lost-warn" id="lostWarn" hidden role="status">
+  <b>Pemain tidak terbaca</b>
+  <span id="lostWarnSub">Kembali ke depan kamera · dijeda dalam 3</span>
+</div>
+
 <div class="pause" id="pauseUi" hidden>
   <div class="pause-box">
     <div class="pause-title">Jeda</div>
@@ -582,11 +595,12 @@ const LIVES = 3;      // nyawa awal
 const MAX_LIVES = 5;  // batas nyawa yang bisa dikumpulkan lewat sarung tangan
 const LEVEL_SECONDS = 60;
 const HOLD_SECONDS = 1.5;   // lama pemain harus pas di siluet sebelum hitung mundur
-const INVULNERABLE = 1.5;   // detik kebal setelah kena bom
+const INVULNERABLE = 1.5;
+const LOST_GRACE = 3;     // detik pemain boleh tidak terbaca sebelum permainan dijeda   // detik kebal setelah kena bom
 const BOARD_KEY = 'balonPecahTop10'; // Mode Bebas; Mode Bocil punya papan sendiri per pilihan waktu
 const BOCIL_DURATIONS = [60, 120, 180];
 const SETTINGS_KEY = 'balonPecahSettings';
-const WEB_VERSION = '1.3.1';  // samakan dengan versionName di android-tv/app/build.gradle
+const WEB_VERSION = '1.3.2';  // samakan dengan versionName di android-tv/app/build.gradle
 const SHARE_URL = 'https://marionanavu-lab.github.io/balon-pecah/';
 const SAWERIA_URL = 'https://saweria.co/sandymind';
 const FEEDBACK_EMAIL = 'sandymind729@gmail.com';
@@ -624,7 +638,7 @@ const state = {
   framing: 'full', weight: 60, showBody: false, // garis badan disembunyikan supaya tampilan lebih nyata
   mode: 'bebas', duration: 60, timeLeft: 60, lastTick: 0, // mode: 'bebas' (3 nyawa) | 'bocil' (tanpa nyawa, batas waktu)
   score: 0, lives: LIVES, elapsed: 0, popped: 0, escaped: 0, kcal: 0, kcalSincePop: 0, hurtUntil: -1,
-  balloons: [], particles: [], texts: [], spawnIn: 0, paused: false, resumeIn: 0,
+  balloons: [], particles: [], texts: [], spawnIn: 0, paused: false, resumeIn: 0, lostFor: 0,
   hazards: [], bombIn: 4, nextEvent: 20, rainUntil: -1, banner: null,
   items: [], itemIn: 25, gloves: 0, gloveOn: false, clapApart: false, level: 1,
   windReadyAt: 0, gusts: [], waveTrack: [null, null],
@@ -664,7 +678,7 @@ function go(phase) {
   const id = SCREEN_OF[phase];
   for (const s of Object.values(SCREEN_OF)) show(s, s === id);
   show('positionUi', phase === 'position');
-  if (phase !== 'play') show('pauseUi', false);
+  if (phase !== 'play') { show('pauseUi', false); show('lostWarn', false); }
   if (phase !== 'play' && phase !== 'over') show('ability', false);
   document.body.classList.toggle('playing', phase === 'play' || phase === 'over' || phase === 'countdown' || phase === 'position');
   renderInventory(false);
@@ -1255,7 +1269,7 @@ function resetGame() {
   clearInterval(cdTimer); clearTimeout(overTimer);
   Object.assign(state, {
     score: 0, lives: LIVES, elapsed: 0, popped: 0, escaped: 0, kcal: 0, kcalSincePop: 0, hurtUntil: -1,
-    balloons: [], particles: [], texts: [], spawnIn: 0.3, paused: false, resumeIn: 0,
+    balloons: [], particles: [], texts: [], spawnIn: 0.3, paused: false, resumeIn: 0, lostFor: 0,
     hazards: [], bombIn: 4, nextEvent: 20, rainUntil: -1, banner: null, timeLeft: state.duration, lastTick: 0,
     items: [], itemIn: 25, gloves: 0, gloveOn: false, clapApart: false, level: 1,
     windReadyAt: 0, gusts: [], waveTrack: [null, null],
@@ -1382,11 +1396,21 @@ function playerInView() {
 
 function update(dt) {
   // Keluar dari kamera: jeda. Setelah kembali, tunggu 1 detik stabil sebelum lanjut.
-  if (!playerInView()) { state.paused = true; state.resumeIn = 1; return; }
+  // Pemain tidak terbaca: permainan tetap jalan selama LOST_GRACE detik dengan peringatan, baru setelah itu dijeda.
+  // Setelah dijeda, permainan lanjut bila pemain terbaca stabil selama 1 detik.
+  const inView = playerInView();
   if (state.paused) {
+    if (!inView) { state.resumeIn = 1; return; }
     state.resumeIn -= dt;
     if (state.resumeIn > 0) return;
-    state.paused = false;
+    state.paused = false; state.lostFor = 0;
+  } else if (!inView) {
+    const before = state.lostFor;
+    state.lostFor += dt;
+    if (before <= 0.25 && state.lostFor > 0.25) beep(440, 0.12, 'square', 0.08); // bunyi saat peringatan muncul
+    if (state.lostFor >= LOST_GRACE) { state.paused = true; state.resumeIn = 1; return; }
+  } else {
+    state.lostFor = 0;
   }
   state.elapsed += dt;
   if (state.mode === 'bocil') {
@@ -2188,6 +2212,9 @@ function updateHud() {
   renderAbility();
 
   const paused = state.phase === 'play' && state.paused;
+  const warn = state.phase === 'play' && !paused && state.lostFor > 0.25; // abaikan hilang sesaat
+  show('lostWarn', warn);
+  if (warn) $('lostWarnSub').textContent = `Kembali ke depan kamera · dijeda dalam ${Math.ceil(LOST_GRACE - state.lostFor)}`;
   show('pauseUi', paused);
   if (paused) {
     const back = playerInView();
