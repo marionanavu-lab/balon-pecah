@@ -615,7 +615,7 @@ a:focus{outline:4px solid var(--sky);outline-offset:3px}
 <div class="conn" id="connBadge" hidden>HP tersambung</div>
 <div class="toast" id="toast" hidden role="status"></div>
 
-<!-- Replay 5 detik terakhir (2x cepat, 2 putaran) lalu mengecil ke tombol "Bagikan video" -->
+<!-- Replay 10 detik terakhir (2x cepat) lalu mengecil ke tombol "Bagikan video" -->
 <div class="replay" id="replay" hidden>
   <div class="replay-view" id="replayView">
     <canvas id="replayCanvas"></canvas>
@@ -643,7 +643,7 @@ const LOST_GRACE = 3;     // detik pemain boleh tidak terbaca sebelum permainan 
 const BOARD_KEY = 'balonPecahTop10'; // Mode Bebas; Mode Bocil punya papan sendiri per pilihan waktu
 const BOCIL_DURATIONS = [60, 120, 180];
 const SETTINGS_KEY = 'balonPecahSettings';
-const WEB_VERSION = '1.4.0';  // samakan dengan versionName di android-tv/app/build.gradle
+const WEB_VERSION = '1.4.1';  // samakan dengan versionName di android-tv/app/build.gradle
 const SHARE_URL = 'https://marionanavu-lab.github.io/balon-pecah/';
 const SAWERIA_URL = 'https://saweria.co/sandymind';
 const FEEDBACK_EMAIL = 'sandymind729@gmail.com';
@@ -2415,20 +2415,21 @@ function updateHandCursor(dt) {
   }
 }
 
-/* ---------- Video 5 detik terakhir ----------
-   Selama bermain, layar (video kamera + kanvas game + skor + logo) disalin ke kanvas kecil CLIP_FPS kali per detik
-   dan disimpan sebagai gambar; hanya CLIP_SECONDS detik terakhir yang dipertahankan. Setelah game selesai, gambar-gambar
-   itu diputar ulang ke MediaRecorder (ditambah kartu penutup berisi skor) untuk menghasilkan video yang bisa dibagikan. */
-const CLIP_SECONDS = 5, CLIP_FPS = 12, CLIP_WIDTH = 640, CLIP_END_SECONDS = 1.5;
-const clip = { frames: [], lastAt: 0, canvas: null, ctx: null, blob: null, busy: false, score: 0 };
+/* ---------- Video 10 detik terakhir ----------
+   Selama bermain, layar (video kamera + kanvas game + skor + logo) disalin ke kanvas rekaman CLIP_FPS kali per detik
+   dan disimpan sebagai JPEG (hemat memori); hanya CLIP_SECONDS detik terakhir yang dipertahankan. Setelah game selesai,
+   gambar-gambar itu diputar ulang ke MediaRecorder (ditambah kartu penutup berisi skor) untuk menghasilkan video. */
+const CLIP_SECONDS = 10, CLIP_FPS = 24, CLIP_WIDTH = 960, CLIP_END_SECONDS = 1.5;
+const CLIP_JPEG_QUALITY = 0.85, CLIP_BITRATE = 5000000;
+const clip = { frames: [], nextAt: 0, canvas: null, ctx: null, blob: null, busy: false, score: 0, gen: 0 };
+const decodeClipFrame = f => createImageBitmap(f.jpg);
 const clipLogo = new Image();
 clipLogo.src = 'img/sandymind-white.png';
 
 function clipReset() {
   endReplay();
-  clip.gen = (clip.gen || 0) + 1; // batalkan pembuatan video yang masih berjalan
-  for (const f of clip.frames) f.bmp.close?.();
-  clip.frames = []; clip.blob = null; clip.busy = false; clip.lastAt = 0;
+  clip.gen++; // batalkan pembuatan video dan penyimpanan frame yang masih berjalan
+  clip.frames = []; clip.blob = null; clip.busy = false; clip.nextAt = 0;
   renderClipButton();
 }
 
@@ -2464,14 +2465,56 @@ function composeClipFrame() {
   }
 }
 
+// Kompresi JPEG dikerjakan di worker: toBlob di thread utama memakan ±20 ms per frame di HP dan membuat game tersendat,
+// sedangkan menyalin kanvas ke ImageBitmap hanya ±0,1 ms. Dua worker dipakai bergantian supaya tetap 24 fps
+// walau CPU juga sibuk dengan kamera dan deteksi pose.
+const CLIP_ENCODERS = 2;
+const clipEncoders = (() => {
+  if (typeof OffscreenCanvas === 'undefined' || typeof Worker === 'undefined') return null;
+  try {
+    const src = `const oc = new OffscreenCanvas(1, 1), x = oc.getContext('2d');
+      onmessage = async e => {
+        const { t, gen, bmp, q } = e.data;
+        if (oc.width !== bmp.width || oc.height !== bmp.height) { oc.width = bmp.width; oc.height = bmp.height; }
+        x.drawImage(bmp, 0, 0); bmp.close();
+        try { postMessage({ t, gen, jpg: await oc.convertToBlob({ type: 'image/jpeg', quality: q }) }); }
+        catch { postMessage({ t, gen, jpg: null }); }
+      };`;
+    const url = URL.createObjectURL(new Blob([src], { type: 'text/javascript' }));
+    return Array.from({ length: CLIP_ENCODERS }, () => {
+      const w = new Worker(url);
+      w.pending = 0;
+      w.onmessage = e => { w.pending--; storeClipFrame(e.data.t, e.data.gen, e.data.jpg); };
+      w.onerror = () => { clip.noWorker = true; };
+      return w;
+    });
+  } catch { return null; }
+})();
+
+function storeClipFrame(t, gen, jpg) {
+  if (!jpg || clip.gen !== gen) return;
+  // Hasil dari dua worker bisa datang tidak berurutan
+  let i = clip.frames.length;
+  while (i > 0 && clip.frames[i - 1].t > t) i--;
+  clip.frames.splice(i, 0, { t, jpg });
+  while (clip.frames.length && clip.frames[0].t < t - CLIP_SECONDS * 1000) clip.frames.shift();
+}
+
 function captureClipFrame(now) {
-  if (now - clip.lastAt < 1000 / CLIP_FPS || state.paused) return;
-  clip.lastAt = now;
+  if (now < clip.nextAt || state.paused) return;
+  // Jadwal tetap (bukan "sejak frame terakhir") supaya rata-rata tetap CLIP_FPS walau layar 60Hz tidak habis dibagi
+  clip.nextAt = Math.max(clip.nextAt + 1000 / CLIP_FPS, now - 1000 / CLIP_FPS);
   composeClipFrame();
-  createImageBitmap(clip.canvas).then(bmp => {
-    clip.frames.push({ t: now, bmp });
-    while (clip.frames.length && clip.frames[0].t < now - CLIP_SECONDS * 1000) clip.frames.shift().bmp.close?.();
-  }).catch(() => {});
+  const gen = clip.gen;
+  if (clipEncoders && !clip.noWorker) {
+    const w = clipEncoders.reduce((a, b) => (b.pending < a.pending ? b : a)); // worker yang paling longgar
+    if (w.pending > 3) { clip.skipped = (clip.skipped || 0) + 1; return; } // semua tertinggal: lewati frame ini
+    w.pending++;
+    createImageBitmap(clip.canvas).then(bmp => w.postMessage({ t: now, gen, bmp, q: CLIP_JPEG_QUALITY }, [bmp]))
+      .catch(() => { w.pending--; });
+  } else {
+    clip.canvas.toBlob(jpg => storeClipFrame(now, gen, jpg), 'image/jpeg', CLIP_JPEG_QUALITY);
+  }
 }
 
 function clipMimeType() {
@@ -2488,21 +2531,36 @@ async function buildClip() {
   const gen = clip.gen;
   renderClipButton();
   const frames = clip.frames.slice();
-  drawClipThumb(frames[frames.length - 1].bmp);
-  const { width: w, height: h } = frames[0].bmp;
+  const last = await decodeClipFrame(frames[frames.length - 1]);
+  if (clip.gen !== gen) { last.close(); return; }
+  drawClipThumb(last);
+  const { width: w, height: h } = last;
   const out = document.createElement('canvas'); out.width = w; out.height = h;
   const o = out.getContext('2d');
-  o.drawImage(frames[0].bmp, 0, 0);
-  const rec = new MediaRecorder(out.captureStream(CLIP_FPS), { mimeType: type, videoBitsPerSecond: 2500000 });
+  const first = await decodeClipFrame(frames[0]);
+  o.drawImage(first, 0, 0); first.close();
+  // captureStream(0) + requestFrame(): setiap gambar yang digambar pasti masuk video. Dengan captureStream(CLIP_FPS),
+  // gambar yang datang sedikit lebih cepat dari 1/CLIP_FPS detik dibuang browser, dan di HP hasilnya hanya ±15 fps.
+  const stream = out.captureStream(0), track = stream.getVideoTracks()[0];
+  const push = () => (track.requestFrame ? track.requestFrame() : stream.requestFrame?.());
+  const rec = new MediaRecorder(stream, { mimeType: type, videoBitsPerSecond: CLIP_BITRATE });
   const chunks = [];
   rec.ondataavailable = e => { if (e.data.size) chunks.push(e.data); };
   const stopped = new Promise(r => { rec.onstop = r; });
-  const wait = () => new Promise(r => setTimeout(r, 1000 / CLIP_FPS));
-  const cancelled = () => { if (clip.gen === gen) return false; rec.stop(); return true; };
+  // Frame ditampilkan sesuai jadwal waktu aslinya, supaya kecepatan video tetap benar walau decode sesekali lambat
+  const sleep = ms => new Promise(r => setTimeout(r, Math.max(0, ms)));
+  const cancelled = () => { if (clip.gen === gen) return false; rec.stop(); last.close(); return true; };
   rec.start(500);
-  for (const f of frames) { if (cancelled()) return; o.drawImage(f.bmp, 0, 0); await wait(); }
+  push();
+  const start = performance.now(), t0 = frames[0].t;
+  for (const f of frames) {
+    if (cancelled()) return;
+    const bmp = await decodeClipFrame(f);
+    await sleep(start + f.t - t0 - performance.now());
+    o.drawImage(bmp, 0, 0); bmp.close(); push();
+  }
+  await sleep(1000 / CLIP_FPS);
   // Kartu penutup: skor akhir + ajakan
-  const last = frames[frames.length - 1].bmp;
   for (let i = 0; i < CLIP_FPS * CLIP_END_SECONDS; i++) {
     if (cancelled()) return;
     o.drawImage(last, 0, 0);
@@ -2514,8 +2572,10 @@ async function buildClip() {
     o.fillText(`SKOR ${clip.score}`, w / 2, h * 0.5);
     o.fillStyle = '#a9b0d6'; o.font = `800 ${Math.round(h * 0.055)}px Nunito, system-ui, sans-serif`;
     o.fillText('Main juga! Ikuti @sandy.mind', w / 2, h * 0.7);
-    await wait();
+    push();
+    await sleep(1000 / CLIP_FPS);
   }
+  last.close();
   rec.stop();
   await stopped;
   if (clip.gen !== gen) return;
@@ -2539,44 +2599,49 @@ function drawClipThumb(bmp) {
 }
 
 /* ---------- Replay setelah game selesai ----------
-   Frame yang sudah terekam diputar ulang layar penuh (2x cepat, 2 putaran), berhenti sebentar di frame terakhir,
+   Frame yang sudah terekam diputar ulang layar penuh (2x cepat, 1 putaran), berhenti sebentar di frame terakhir,
    lalu mengecil ke thumbnail di tombol "Bagikan video". Video untuk dibagikan dibuat bersamaan di latar belakang.
    Ketuk atau tombol Back untuk melewati. */
-const REPLAY_SPEED = 2, REPLAY_LOOPS = 2;
-const replay = { active: false, raf: 0, timer: 0, frames: null };
+const REPLAY_SPEED = 2, REPLAY_LOOPS = 1;
+const replay = { active: false, timer: 0, gen: 0, last: null };
 
-function startReplay() {
+async function startReplay() {
   const frames = clip.frames.slice();
   if (frames.length < CLIP_FPS) return;
-  replay.active = true; replay.frames = frames;
+  const gen = ++replay.gen;
+  const last = await decodeClipFrame(frames[frames.length - 1]);
+  if (replay.gen !== gen || state.phase !== 'result') { last.close(); return; }
+  replay.active = true; replay.last = last;
   const ov = $('replay'), view = $('replayView'), cv = $('replayCanvas');
   view.style.transition = 'none'; view.style.transform = 'none';
   ov.classList.remove('fade'); ov.hidden = false;
-  cv.width = frames[0].bmp.width; cv.height = frames[0].bmp.height;
+  cv.width = last.width; cv.height = last.height;
   const rc = cv.getContext('2d');
   const t0 = frames[0].t, span = Math.max(1, frames[frames.length - 1].t - t0);
   const total = span / REPLAY_SPEED * REPLAY_LOOPS, start = performance.now();
-  const tick = now => {
-    if (!replay.active) return;
-    const el = now - start;
-    if (el >= total) {
-      rc.drawImage(frames[frames.length - 1].bmp, 0, 0);
-      replay.timer = setTimeout(shrinkReplay, 350); // berhenti sejenak di frame terakhir
-      return;
-    }
+  const nextFrame = () => new Promise(r => requestAnimationFrame(r));
+  let shown = -1;
+  // Frame di-decode satu per satu; bila decode tertinggal, frame di antaranya dilewati
+  for (let el = 0; el < total; el = performance.now() - start) {
     const pt = (el * REPLAY_SPEED) % span;
     let i = frames.findIndex(f => f.t - t0 > pt);
     i = i < 0 ? frames.length - 1 : Math.max(0, i - 1);
-    rc.drawImage(frames[i].bmp, 0, 0);
-    replay.raf = requestAnimationFrame(tick);
-  };
-  replay.raf = requestAnimationFrame(tick);
+    if (i !== shown) {
+      const bmp = await decodeClipFrame(frames[i]);
+      if (replay.gen !== gen) { bmp.close(); return; }
+      rc.drawImage(bmp, 0, 0); bmp.close(); shown = i;
+    }
+    await nextFrame();
+    if (replay.gen !== gen) return;
+  }
+  rc.drawImage(last, 0, 0);
+  replay.timer = setTimeout(shrinkReplay, 350); // berhenti sejenak di frame terakhir
 }
 
 function shrinkReplay() {
   if (!replay.active || $('replay').classList.contains('fade')) return;
-  cancelAnimationFrame(replay.raf); clearTimeout(replay.timer);
-  const last = replay.frames[replay.frames.length - 1].bmp;
+  replay.gen++; clearTimeout(replay.timer); // hentikan pemutaran
+  const last = replay.last;
   $('replayCanvas').getContext('2d').drawImage(last, 0, 0);
   drawClipThumb(last);
   const view = $('replayView'), target = $('clipThumb');
@@ -2598,7 +2663,8 @@ function shrinkReplay() {
 
 function endReplay() {
   replay.active = false;
-  cancelAnimationFrame(replay.raf); clearTimeout(replay.timer);
+  replay.gen++; clearTimeout(replay.timer);
+  replay.last?.close(); replay.last = null;
   const view = $('replayView');
   $('replay').hidden = true;
   view.style.transition = 'none'; view.style.transform = 'none';
