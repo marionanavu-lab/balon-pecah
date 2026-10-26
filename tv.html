@@ -128,6 +128,29 @@ button:focus,input:focus{outline:4px solid var(--sky);outline-offset:3px}
 .phone-ok{display:flex;align-items:center;gap:10px;font-weight:800;color:var(--mint)}
 .phone-ok::before{content:"";width:12px;height:12px;border-radius:50%;background:var(--mint);box-shadow:0 0 12px var(--mint)}
 .btnrow{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.btnrow.three{grid-template-columns:1.2fr 1fr 1fr}
+/* Tombol video dengan thumbnail frame terakhir */
+.clip-btn{display:flex;align-items:center;justify-content:center;gap:10px}
+.clip-thumb-wrap{position:relative;flex:none;display:flex}
+.clip-thumb{box-sizing:content-box;height:42px;width:auto;aspect-ratio:var(--clip-ar,16/9);border-radius:6px;border:2px solid rgba(255,255,255,.85);background:#000}
+.clip-btn.busy .clip-thumb-wrap::after{content:"";position:absolute;inset:0;margin:auto;width:18px;height:18px;border-radius:50%;
+  border:3px solid rgba(255,255,255,.35);border-top-color:#fff;animation:spin .8s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+/* Replay layar penuh setelah game selesai */
+.replay{position:fixed;inset:0;z-index:55;background:rgba(0,0,0,.88);transition:background .6s;cursor:pointer}
+.replay.fade{background:rgba(0,0,0,0)}
+.replay-view{position:absolute;inset:0;overflow:hidden}
+.replay-view canvas{display:block;width:100%;height:100%;object-fit:contain}
+.replay-tag{position:absolute;left:max(16px,env(safe-area-inset-left,0px));top:calc(14px + env(safe-area-inset-top,0px));font-family:var(--display);
+  font-size:clamp(18px,2.6vw,30px);color:#fff;background:var(--coral);border-radius:10px;padding:4px 12px;letter-spacing:.06em}
+.replay-tag i{font-style:normal;color:#1b1400;background:var(--sun);border-radius:6px;padding:0 6px;margin-left:8px}
+.replay-skip{position:absolute;left:50%;bottom:calc(14px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);font-weight:800;font-size:14px;
+  color:#fff;background:rgba(11,14,31,.7);border-radius:999px;padding:6px 14px;white-space:nowrap}
+.replay.fade .replay-tag,.replay.fade .replay-skip{opacity:0;transition:opacity .2s}
+/* Pesan singkat di bawah layar (mis. video tersimpan) */
+.toast{position:fixed;left:50%;bottom:calc(16px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);z-index:70;pointer-events:none;
+  background:var(--panel);border:1px solid var(--mint);color:var(--text);border-radius:999px;padding:8px 18px;font-weight:700;font-size:15px;
+  max-width:calc(100% - 32px);text-align:center}
 
 /* Kalibrasi posisi: siluet digambar di kanvas, teks di atas, progres di bawah */
 .position{position:fixed;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:space-between;pointer-events:none;
@@ -273,6 +296,12 @@ a:focus{outline:4px solid var(--sky);outline-offset:3px}
   .board-list{gap:2px}
   .board-list li{padding:1px 8px;font-size:12px;gap:8px;border-radius:6px}
   .btnrow{grid-template-columns:1fr 1fr}
+  .btnrow.three{grid-template-columns:1.2fr 1fr 1fr}
+  .clip-thumb{height:26px;border-width:1.5px;border-radius:4px}
+  .clip-btn{gap:6px}
+  .replay-tag{font-size:16px;padding:2px 8px}
+  .replay-skip{font-size:11px;padding:3px 10px}
+  .toast{font-size:12px;padding:5px 12px;bottom:calc(6px + env(safe-area-inset-bottom,0px))}
 
   .about-grid{grid-template-columns:1.15fr 1fr;gap:14px}
   .about-main{gap:8px}
@@ -330,7 +359,7 @@ a:focus{outline:4px solid var(--sky);outline-offset:3px}
   .pause-sub{font-size:13px}
   .pos-bar{height:6px}
 }
-@media (prefers-reduced-motion:reduce){.lost-warn,.lives.hit,.heart.new,.inventory.pop,.time-left.low{animation:none}}
+@media (prefers-reduced-motion:reduce){.clip-btn.busy .clip-thumb-wrap::after,.lost-warn,.lives.hit,.heart.new,.inventory.pop,.time-left.low{animation:none}}
 </style>
 </head>
 <body>
@@ -522,8 +551,12 @@ a:focus{outline:4px solid var(--sky);outline-offset:3px}
         <ol class="board-list" id="resultBoard"></ol>
       </div>
     </div>
-    <div class="btnrow">
+    <div class="btnrow three">
       <button class="btn" id="againBtn" type="button">Main lagi</button>
+      <button class="btn alt clip-btn" id="clipBtn" type="button" hidden>
+        <span class="clip-thumb-wrap"><canvas class="clip-thumb" id="clipThumb" width="160" height="90"></canvas></span>
+        <span id="clipLabel">Bagikan video</span>
+      </button>
       <button class="btn ghost" id="menuBtn" type="button">Menu</button>
     </div>
   </div>
@@ -580,6 +613,16 @@ a:focus{outline:4px solid var(--sky);outline-offset:3px}
 </section>
 
 <div class="conn" id="connBadge" hidden>HP tersambung</div>
+<div class="toast" id="toast" hidden role="status"></div>
+
+<!-- Replay 5 detik terakhir (2x cepat, 2 putaran) lalu mengecil ke tombol "Bagikan video" -->
+<div class="replay" id="replay" hidden>
+  <div class="replay-view" id="replayView">
+    <canvas id="replayCanvas"></canvas>
+    <div class="replay-tag">REPLAY<i>2×</i></div>
+    <div class="replay-skip">Ketuk untuk lewati</div>
+  </div>
+</div>
 
 <div class="hand-cursor" id="handCursor" hidden>
   <svg viewBox="0 0 64 64" aria-hidden="true"><circle class="hc-bg" cx="32" cy="32" r="27"/><circle class="hc-ring" id="handRing" cx="32" cy="32" r="27" stroke-dasharray="169.6" stroke-dashoffset="169.6"/></svg>
@@ -600,7 +643,7 @@ const LOST_GRACE = 3;     // detik pemain boleh tidak terbaca sebelum permainan 
 const BOARD_KEY = 'balonPecahTop10'; // Mode Bebas; Mode Bocil punya papan sendiri per pilihan waktu
 const BOCIL_DURATIONS = [60, 120, 180];
 const SETTINGS_KEY = 'balonPecahSettings';
-const WEB_VERSION = '1.3.2';  // samakan dengan versionName di android-tv/app/build.gradle
+const WEB_VERSION = '1.4.0';  // samakan dengan versionName di android-tv/app/build.gradle
 const SHARE_URL = 'https://marionanavu-lab.github.io/balon-pecah/';
 const SAWERIA_URL = 'https://saweria.co/sandymind';
 const FEEDBACK_EMAIL = 'sandymind729@gmail.com';
@@ -679,6 +722,7 @@ function go(phase) {
   for (const s of Object.values(SCREEN_OF)) show(s, s === id);
   show('positionUi', phase === 'position');
   if (phase !== 'play') { show('pauseUi', false); show('lostWarn', false); }
+  if (phase !== 'result' && replay.active) endReplay();
   if (phase !== 'play' && phase !== 'over') show('ability', false);
   document.body.classList.toggle('playing', phase === 'play' || phase === 'over' || phase === 'countdown' || phase === 'position');
   renderInventory(false);
@@ -1171,7 +1215,9 @@ function handleBack() {
     case 'position': go('menu'); return true;
     case 'countdown': clearInterval(cdTimer); go('menu'); return true;
     case 'play': case 'over': endGame(); return true;
-    case 'result': go('menu'); return true;
+    case 'result':
+      if (replay.active) { shrinkReplay(); return true; } // Back saat replay: lewati replay
+      go('menu'); return true;
   }
   return false;
 }
@@ -1275,6 +1321,7 @@ function resetGame() {
     windReadyAt: 0, gusts: [], waveTrack: [null, null],
   });
   renderLives(false);
+  clipReset();
   renderInventory(false);
   renderAbility();
   updateHud();
@@ -1728,6 +1775,8 @@ function endGame() {
   bestScoreCache = bestScore();
   renderResult(entry);
   go('result');
+  buildClip();     // tombol "Bagikan video" langsung muncul (status menyiapkan), video dibuat di latar belakang
+  startReplay();   // sementara itu pemain menonton replay
   if (entry) [784, 988, 1175, 1568].forEach((f, i) => setTimeout(() => beep(f, 0.18, 'triangle', 0.18), i * 120));
   else [392, 330, 262].forEach((f, i) => setTimeout(() => beep(f, 0.25, 'sine', 0.18), i * 180));
 }
@@ -2328,7 +2377,7 @@ function setHandRing(progress) {
 
 function updateHandCursor(dt) {
   const cursor = $('handCursor');
-  const tracking = HAND_PHASES.has(state.phase) && !!landmarks && !!body;
+  const tracking = HAND_PHASES.has(state.phase) && !!landmarks && !!body && !replay.active;
   const pt = tracking ? handPoint() : null;
   if (!pt) {
     cursor.hidden = true; hand.shown = false; hand.lockPos = null;
@@ -2366,6 +2415,237 @@ function updateHandCursor(dt) {
   }
 }
 
+/* ---------- Video 5 detik terakhir ----------
+   Selama bermain, layar (video kamera + kanvas game + skor + logo) disalin ke kanvas kecil CLIP_FPS kali per detik
+   dan disimpan sebagai gambar; hanya CLIP_SECONDS detik terakhir yang dipertahankan. Setelah game selesai, gambar-gambar
+   itu diputar ulang ke MediaRecorder (ditambah kartu penutup berisi skor) untuk menghasilkan video yang bisa dibagikan. */
+const CLIP_SECONDS = 5, CLIP_FPS = 12, CLIP_WIDTH = 640, CLIP_END_SECONDS = 1.5;
+const clip = { frames: [], lastAt: 0, canvas: null, ctx: null, blob: null, busy: false, score: 0 };
+const clipLogo = new Image();
+clipLogo.src = 'img/sandymind-white.png';
+
+function clipReset() {
+  endReplay();
+  clip.gen = (clip.gen || 0) + 1; // batalkan pembuatan video yang masih berjalan
+  for (const f of clip.frames) f.bmp.close?.();
+  clip.frames = []; clip.blob = null; clip.busy = false; clip.lastAt = 0;
+  renderClipButton();
+}
+
+// Gambar tampilan permainan saat ini ke kanvas rekaman (ukuran kecil, rasio sama dengan layar)
+function composeClipFrame() {
+  const w = CLIP_WIDTH, h = Math.round(CLIP_WIDTH * H / W / 2) * 2;
+  if (!clip.canvas || clip.canvas.width !== w || clip.canvas.height !== h) {
+    clip.canvas = document.createElement('canvas'); clip.canvas.width = w; clip.canvas.height = h;
+    clip.ctx = clip.canvas.getContext('2d');
+  }
+  const x = clip.ctx, s = w / W;
+  x.fillStyle = '#0b0e1f'; x.fillRect(0, 0, w, h);
+  if (!remote.hidden && remote.readyState >= 2) {
+    const r = coverRect();
+    x.save(); x.translate(w, 0); x.scale(-1, 1);
+    x.drawImage(remote, r.x * s, r.y * s, r.w * s, r.h * s);
+    x.restore();
+  }
+  x.drawImage(canvas, 0, 0, w, h);
+  // Skor, nyawa/waktu, dan logo
+  const pad = h * 0.04, fs = Math.round(h * 0.075);
+  x.save();
+  x.textBaseline = 'top'; x.shadowColor = 'rgba(0,0,0,.8)'; x.shadowBlur = 6;
+  x.font = `${fs}px Bungee, "Arial Black", sans-serif`; x.fillStyle = '#fff';
+  x.fillText(`Skor ${state.score}`, pad, pad);
+  x.textAlign = 'center';
+  if (state.mode === 'bocil') x.fillText(fmtTime(Math.ceil(state.timeLeft)), w / 2, pad);
+  else { x.fillStyle = '#ff5a5f'; x.fillText('\u2665'.repeat(Math.max(0, state.lives)), w / 2, pad); }
+  x.restore();
+  if (clipLogo.complete && clipLogo.naturalWidth) {
+    const lh = h * 0.08, lw = lh * clipLogo.naturalWidth / clipLogo.naturalHeight;
+    x.globalAlpha = 0.85; x.drawImage(clipLogo, w - lw - pad, pad, lw, lh); x.globalAlpha = 1;
+  }
+}
+
+function captureClipFrame(now) {
+  if (now - clip.lastAt < 1000 / CLIP_FPS || state.paused) return;
+  clip.lastAt = now;
+  composeClipFrame();
+  createImageBitmap(clip.canvas).then(bmp => {
+    clip.frames.push({ t: now, bmp });
+    while (clip.frames.length && clip.frames[0].t < now - CLIP_SECONDS * 1000) clip.frames.shift().bmp.close?.();
+  }).catch(() => {});
+}
+
+function clipMimeType() {
+  if (typeof MediaRecorder === 'undefined' || !HTMLCanvasElement.prototype.captureStream) return '';
+  // MP4 diutamakan supaya diterima WhatsApp dan Instagram
+  return ['video/mp4;codecs=avc1.42E01E', 'video/mp4', 'video/webm;codecs=vp9', 'video/webm;codecs=vp8', 'video/webm']
+    .find(t => MediaRecorder.isTypeSupported(t)) || '';
+}
+
+async function buildClip() {
+  const type = clipMimeType();
+  if (!type || clip.frames.length < CLIP_FPS) { renderClipButton(); return; } // tidak didukung / permainan terlalu singkat
+  clip.busy = true; clip.score = state.score;
+  const gen = clip.gen;
+  renderClipButton();
+  const frames = clip.frames.slice();
+  drawClipThumb(frames[frames.length - 1].bmp);
+  const { width: w, height: h } = frames[0].bmp;
+  const out = document.createElement('canvas'); out.width = w; out.height = h;
+  const o = out.getContext('2d');
+  o.drawImage(frames[0].bmp, 0, 0);
+  const rec = new MediaRecorder(out.captureStream(CLIP_FPS), { mimeType: type, videoBitsPerSecond: 2500000 });
+  const chunks = [];
+  rec.ondataavailable = e => { if (e.data.size) chunks.push(e.data); };
+  const stopped = new Promise(r => { rec.onstop = r; });
+  const wait = () => new Promise(r => setTimeout(r, 1000 / CLIP_FPS));
+  const cancelled = () => { if (clip.gen === gen) return false; rec.stop(); return true; };
+  rec.start(500);
+  for (const f of frames) { if (cancelled()) return; o.drawImage(f.bmp, 0, 0); await wait(); }
+  // Kartu penutup: skor akhir + ajakan
+  const last = frames[frames.length - 1].bmp;
+  for (let i = 0; i < CLIP_FPS * CLIP_END_SECONDS; i++) {
+    if (cancelled()) return;
+    o.drawImage(last, 0, 0);
+    o.fillStyle = 'rgba(11,14,31,.72)'; o.fillRect(0, 0, w, h);
+    o.textAlign = 'center'; o.textBaseline = 'middle';
+    o.fillStyle = '#ffc23d'; o.font = `${Math.round(h * 0.09)}px Bungee, "Arial Black", sans-serif`;
+    o.fillText('BALON PECAH', w / 2, h * 0.3);
+    o.fillStyle = '#fff'; o.font = `${Math.round(h * 0.16)}px Bungee, "Arial Black", sans-serif`;
+    o.fillText(`SKOR ${clip.score}`, w / 2, h * 0.5);
+    o.fillStyle = '#a9b0d6'; o.font = `800 ${Math.round(h * 0.055)}px Nunito, system-ui, sans-serif`;
+    o.fillText('Main juga! Ikuti @sandy.mind', w / 2, h * 0.7);
+    await wait();
+  }
+  rec.stop();
+  await stopped;
+  if (clip.gen !== gen) return;
+  clip.blob = new Blob(chunks, { type: type.split(';')[0] });
+  clip.busy = false;
+  renderClipButton();
+}
+
+function renderClipButton() {
+  const b = $('clipBtn');
+  b.hidden = !clip.busy && !clip.blob;
+  b.disabled = clip.busy;
+  b.classList.toggle('busy', clip.busy);
+  $('clipLabel').textContent = clip.busy ? 'Menyiapkan video…' : 'Bagikan video';
+}
+function drawClipThumb(bmp) {
+  const c = $('clipThumb');
+  c.width = 160; c.height = Math.round(160 * bmp.height / bmp.width);
+  c.style.setProperty('--clip-ar', `${bmp.width} / ${bmp.height}`);
+  c.getContext('2d').drawImage(bmp, 0, 0, c.width, c.height);
+}
+
+/* ---------- Replay setelah game selesai ----------
+   Frame yang sudah terekam diputar ulang layar penuh (2x cepat, 2 putaran), berhenti sebentar di frame terakhir,
+   lalu mengecil ke thumbnail di tombol "Bagikan video". Video untuk dibagikan dibuat bersamaan di latar belakang.
+   Ketuk atau tombol Back untuk melewati. */
+const REPLAY_SPEED = 2, REPLAY_LOOPS = 2;
+const replay = { active: false, raf: 0, timer: 0, frames: null };
+
+function startReplay() {
+  const frames = clip.frames.slice();
+  if (frames.length < CLIP_FPS) return;
+  replay.active = true; replay.frames = frames;
+  const ov = $('replay'), view = $('replayView'), cv = $('replayCanvas');
+  view.style.transition = 'none'; view.style.transform = 'none';
+  ov.classList.remove('fade'); ov.hidden = false;
+  cv.width = frames[0].bmp.width; cv.height = frames[0].bmp.height;
+  const rc = cv.getContext('2d');
+  const t0 = frames[0].t, span = Math.max(1, frames[frames.length - 1].t - t0);
+  const total = span / REPLAY_SPEED * REPLAY_LOOPS, start = performance.now();
+  const tick = now => {
+    if (!replay.active) return;
+    const el = now - start;
+    if (el >= total) {
+      rc.drawImage(frames[frames.length - 1].bmp, 0, 0);
+      replay.timer = setTimeout(shrinkReplay, 350); // berhenti sejenak di frame terakhir
+      return;
+    }
+    const pt = (el * REPLAY_SPEED) % span;
+    let i = frames.findIndex(f => f.t - t0 > pt);
+    i = i < 0 ? frames.length - 1 : Math.max(0, i - 1);
+    rc.drawImage(frames[i].bmp, 0, 0);
+    replay.raf = requestAnimationFrame(tick);
+  };
+  replay.raf = requestAnimationFrame(tick);
+}
+
+function shrinkReplay() {
+  if (!replay.active || $('replay').classList.contains('fade')) return;
+  cancelAnimationFrame(replay.raf); clearTimeout(replay.timer);
+  const last = replay.frames[replay.frames.length - 1].bmp;
+  $('replayCanvas').getContext('2d').drawImage(last, 0, 0);
+  drawClipThumb(last);
+  const view = $('replayView'), target = $('clipThumb');
+  const tb = target.getBoundingClientRect(), v = view.getBoundingClientRect();
+  const r = { left: tb.left + target.clientLeft, top: tb.top + target.clientTop, width: target.clientWidth }; // tanpa bingkai
+  const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
+  if ($('clipBtn').hidden || !r.width || reduce) { endReplay(); return; }
+  // Gambar replay (object-fit: contain) dipetakan tepat ke kotak thumbnail
+  const fit = Math.min(v.width / last.width, v.height / last.height);
+  const cw = last.width * fit, ch = last.height * fit;
+  const cx = v.left + (v.width - cw) / 2, cy = v.top + (v.height - ch) / 2, k = r.width / cw;
+  view.style.transformOrigin = '0 0';
+  view.style.transition = 'transform .6s cubic-bezier(.55,0,.75,.2)';
+  view.style.transform = `translate(${r.left - v.left - (cx - v.left) * k}px,${r.top - v.top - (cy - v.top) * k}px) scale(${k})`;
+  $('replay').classList.add('fade');
+  windSound();
+  replay.timer = setTimeout(endReplay, 650);
+}
+
+function endReplay() {
+  replay.active = false;
+  cancelAnimationFrame(replay.raf); clearTimeout(replay.timer);
+  const view = $('replayView');
+  $('replay').hidden = true;
+  view.style.transition = 'none'; view.style.transform = 'none';
+}
+$('replay').addEventListener('click', shrinkReplay);
+
+let toastTimer = 0;
+function showToast(msg) {
+  const t = $('toast');
+  t.textContent = msg; t.hidden = false;
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => { t.hidden = true; }, 3500);
+}
+
+const blobToBase64 = blob => new Promise((resolve, reject) => {
+  const r = new FileReader();
+  r.onload = () => resolve(String(r.result).split(',')[1] || '');
+  r.onerror = reject;
+  r.readAsDataURL(blob);
+});
+
+async function shareClip() {
+  if (!clip.blob) return;
+  const ext = clip.blob.type.includes('mp4') ? 'mp4' : 'webm';
+  const name = `balon-pecah-${new Date().toISOString().slice(0, 19).replace(/[-:T]/g, '')}.${ext}`;
+  const text = `Skor ${clip.score} di Balon Pecah! Main juga: ${SHARE_URL} · Ikuti @sandy.mind`;
+  // Aplikasi Android: simpan ke galeri lalu buka menu bagikan Android
+  try {
+    if (bridge()?.shareVideo) { bridge().shareVideo(await blobToBase64(clip.blob), clip.blob.type, name, text); return; }
+  } catch (err) { console.error(err); }
+  const file = new File([clip.blob], name, { type: clip.blob.type });
+  if (navigator.canShare?.({ files: [file] })) {
+    try { await navigator.share({ files: [file], title: 'Balon Pecah', text }); return; }
+    catch (err) { if (err.name === 'AbortError') return; }
+  }
+  // Tidak bisa membagikan langsung (mis. di laptop): unduh videonya
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(clip.blob); a.download = name;
+  document.body.append(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(a.href), 10000);
+  showToast('Video diunduh. Bagikan dari folder unduhan.');
+}
+$('clipBtn').addEventListener('click', shareClip);
+// Dipanggil aplikasi Android setelah video disimpan / gagal dibagikan
+window.onClipSaved = saved => showToast(saved ? 'Video tersimpan di galeri (Movies/Balon Pecah)' : 'Pilih aplikasi untuk membagikan video');
+window.onClipShareFailed = () => showToast('Video gagal dibagikan di perangkat ini');
+
 /* ---------- Loop utama ---------- */
 function frame(now) {
   const dt = Math.min(0.05, (now - lastT) / 1000);
@@ -2379,6 +2659,7 @@ function frame(now) {
   updateHandCursor(dt);
   updateFx(dt);
   draw(now);
+  if (state.phase === 'play' || state.phase === 'over') captureClipFrame(now);
   if (state.phase === 'play' || state.phase === 'countdown' || state.phase === 'over') updateHud();
   requestAnimationFrame(frame);
 }
