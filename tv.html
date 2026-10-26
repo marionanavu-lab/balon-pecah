@@ -586,7 +586,7 @@ const INVULNERABLE = 1.5;   // detik kebal setelah kena bom
 const BOARD_KEY = 'balonPecahTop10'; // Mode Bebas; Mode Bocil punya papan sendiri per pilihan waktu
 const BOCIL_DURATIONS = [60, 120, 180];
 const SETTINGS_KEY = 'balonPecahSettings';
-const WEB_VERSION = '1.3.0';  // samakan dengan versionName di android-tv/app/build.gradle
+const WEB_VERSION = '1.3.1';  // samakan dengan versionName di android-tv/app/build.gradle
 const SHARE_URL = 'https://marionanavu-lab.github.io/balon-pecah/';
 const SAWERIA_URL = 'https://saweria.co/sandymind';
 const FEEDBACK_EMAIL = 'sandymind729@gmail.com';
@@ -2250,8 +2250,12 @@ function windSound() {
 function boom() { beep(90, 0.45, 'sawtooth', 0.3); beep(60, 0.5, 'sine', 0.4); }
 
 /* ---------- Pilih tombol dengan tangan ----------
-   Di layar menu, telapak tangan menggerakkan kursor. Area di depan dada (bahu sampai perut) dipetakan ke seluruh layar,
-   jadi tangan yang tergantung santai di samping badan tidak ikut memilih. Tahan kursor di tombol HAND_DWELL detik
+   Di layar menu, kursor muncul di dekat telapak tangan: posisinya mengikuti tangan di layar, dengan jarak tangan dari
+   tengah dada diperkuat (1,5x saat pemain jauh dari kamera, mendekati 1x saat dekat) supaya tombol di pinggir layar
+   tetap terjangkau tanpa meraih terlalu jauh. Gerak ke bawah diperkuat lebih besar supaya tombol di bagian bawah layar
+   (yang di layar letaknya lebih rendah dari pinggang pemain) tetap terjangkau. Tangan yang tergantung lurus sampai paha
+   tidak dipakai, jadi tidak ikut memilih.
+   Tahan kursor di tombol HAND_DWELL detik
    untuk menekannya. Setelah menekan, kursor harus bergeser dulu sebelum bisa menekan lagi, supaya tombol di layar
    berikutnya tidak ikut tertekan (kecuali tombol +/- yang boleh diulang dengan menahan tangan). */
 const HAND_DWELL = 1.2;
@@ -2259,19 +2263,30 @@ const HAND_PHASES = new Set(['mode', 'pair', 'menu', 'result', 'board', 'about']
 const RING_LEN = 169.6; // keliling lingkaran progres (2πr, r = 27)
 const hand = { x: 0, y: 0, shown: false, target: null, held: 0, lockPos: null, repeat: false };
 
+// Penguatan gerak tangan: 1,5x saat badan kecil di layar (pemain jauh), turun ke 1x saat badan besar (pemain dekat)
+function handGain() {
+  const rel = body.sw / Math.min(W, H); // lebar bahu relatif terhadap layar: ~0,18 jauh, ~0,45 dekat
+  return 1 + 0.5 * clamp((0.45 - rel) / 0.27, 0, 1);
+}
 function handPoint() {
   if (!body?.palms || ![11, 12].every(visible)) return null;
   const P = body.P, sw = body.sw;
-  const cx = (P[11].x + P[12].x) / 2, shY = (P[11].y + P[12].y) / 2;
+  const ax = (P[11].x + P[12].x) / 2, shY = (P[11].y + P[12].y) / 2;
+  const ay = shY + sw * 0.5; // titik tumpu: tengah dada
+  // Batas tangan dipakai: sedikit di bawah pinggul (pakai garis pinggul bila terlihat)
+  const limit = [23, 24].every(visible) ? (P[23].y + P[24].y) / 2 + sw * 0.25 : shY + sw * 1.6;
   let best = null;
   for (const p of body.palms) {
-    if (!p) continue;
-    const nx = (p.x - (cx - 1.5 * sw)) / (3 * sw);
-    const ny = (p.y - (shY - 1.0 * sw)) / (2.4 * sw);
-    if (nx < -0.05 || nx > 1.05 || ny < -0.05 || ny > 1.05) continue; // di luar area jangkauan
-    if (!best || ny < best.ny) best = { nx, ny }; // tangan yang lebih tinggi yang dipakai
+    if (!p || p.y > limit) continue;     // tangan tergantung lurus: tidak dipakai
+    if (!best || p.y < best.y) best = p; // tangan yang lebih tinggi yang dipakai
   }
-  return best && { x: clamp(best.nx, 0, 1) * W, y: clamp(best.ny, 0, 1) * H };
+  if (!best) return null;
+  const gain = handGain();
+  const gainY = best.y > ay ? gain * 1.5 : gain; // ke bawah diperkuat lebih
+  return {
+    x: clamp(ax + (best.x - ax) * gain, 0, W),
+    y: clamp(ay + (best.y - ay) * gainY, 0, H),
+  };
 }
 
 function setHandTarget(t) {
