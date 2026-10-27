@@ -649,7 +649,7 @@ const LOST_GRACE = 3;     // detik pemain boleh tidak terbaca sebelum permainan 
 const BOARD_KEY = 'balonPecahTop10'; // Mode Bebas; Mode Bocil punya papan sendiri per pilihan waktu
 const BOCIL_DURATIONS = [60, 120, 180];
 const SETTINGS_KEY = 'balonPecahSettings';
-const WEB_VERSION = '1.4.2';  // samakan dengan versionName di android-tv/app/build.gradle
+const WEB_VERSION = '1.4.3';  // samakan dengan versionName di android-tv/app/build.gradle
 const SHARE_URL = 'https://marionanavu-lab.github.io/balon-pecah/';
 const SAWERIA_URL = 'https://saweria.co/sandymind';
 const FEEDBACK_EMAIL = 'sandymind729@gmail.com';
@@ -1148,8 +1148,9 @@ function renderSettings() {
   document.querySelectorAll('#bodyLines .seg').forEach(s => s.setAttribute('aria-pressed', String((s.dataset.lines === 'on') === state.showBody)));
   document.querySelectorAll('#durations .seg').forEach(s => s.setAttribute('aria-pressed', String(+s.dataset.sec === state.duration)));
   const rec = $('recBtn');
-  rec.setAttribute('aria-pressed', String(state.rec !== 'off'));
-  rec.textContent = state.rec === 'off' ? 'Rekam video: Mati' : clipTier() === 'low' ? 'Rekam video: Ringan' : 'Rekam video: Nyala';
+  const tier = clipTier();
+  rec.setAttribute('aria-pressed', String(!!tier));
+  rec.textContent = !tier ? 'Rekam video: Mati' : tier === 'low' ? 'Rekam video: Ringan' : 'Rekam video: Nyala';
   try { localStorage.setItem(SETTINGS_KEY, JSON.stringify({ weight: state.weight, framing: state.framing, showBody: state.showBody, duration: state.duration, rec: state.rec })); } catch {}
 }
 document.querySelectorAll('[data-step]').forEach(b => b.addEventListener('click', () => {
@@ -1162,8 +1163,8 @@ $('durations').addEventListener('click', e => {
   renderSettings();
 });
 $('recBtn').addEventListener('click', () => {
-  // Dinyalakan lagi setelah pernah dimatikan (mis. karena aplikasi sempat tertutup): mulai dari kualitas ringan
-  state.rec = state.rec !== 'off' ? 'off' : (state.recCrashed ? 'low' : 'auto');
+  // Dinyalakan di TV atau setelah aplikasi sempat tertutup: selalu kualitas ringan
+  state.rec = clipTier() ? 'off' : (state.recCrashed || tvDevice() ? 'low' : 'auto');
   renderSettings();
 });
 $('bodyLines').addEventListener('click', e => {
@@ -2447,21 +2448,29 @@ const CLIP_TIERS = {
 let CLIP_FPS = 24, CLIP_WIDTH = 960, CLIP_BITRATE = 5000000, CLIP_ENCODERS = 2;
 
 // Fungsi biasa (bukan const/let) karena sudah dipakai renderSettings() saat halaman dimuat
+function tvDevice() {
+  if (tvDevice.cache !== undefined) return tvDevice.cache;
+  let tv = false;
+  try { tv = !!bridge()?.isTv?.(); } catch {}
+  if (/\bTV\b|AFT[A-Z]|BRAVIA|SMART-?TV|GoogleTV|Android TV|CrKey/i.test(navigator.userAgent)) tv = true;
+  return (tvDevice.cache = tv);
+}
 function weakDevice() {
   if (weakDevice.cache !== undefined) return weakDevice.cache;
-  let weak = false;
+  let weak = tvDevice();
   try {
-    const b = bridge();
-    if (b?.isTv?.()) weak = true;
-    const mb = +(b?.memoryMb?.() || 0);
+    const mb = +(bridge()?.memoryMb?.() || 0);
     if (mb && mb < 3500) weak = true;
   } catch {}
   if (navigator.deviceMemory && navigator.deviceMemory < 4) weak = true;
   if ((navigator.hardwareConcurrency || 8) < 4) weak = true;
-  if (/\bTV\b|AFT[A-Z]|BRAVIA|SMART-?TV|GoogleTV|Android TV|CrKey/i.test(navigator.userAgent)) weak = true;
   return (weakDevice.cache = weak);
 }
-function clipTier() { return state.rec === 'off' ? null : state.rec === 'low' || weakDevice() ? 'low' : 'high'; }
+// Di TV rekaman bawaannya mati (versi ringan pun masih membuat TV tertutup paksa); bisa dinyalakan dari menu.
+function clipTier() {
+  if (state.rec === 'off' || (state.rec === 'auto' && tvDevice())) return null;
+  return state.rec === 'low' || weakDevice() ? 'low' : 'high';
+}
 function applyClipTier() {
   clip.tier = clipTier();
   const t = CLIP_TIERS[clip.tier];
