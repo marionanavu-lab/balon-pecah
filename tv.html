@@ -204,6 +204,11 @@ button:focus,input:focus{outline:4px solid var(--sky);outline-offset:3px}
 .board-card{width:min(560px,100%)}
 
 /* Logo di kartu: tombol ke halaman Tentang */
+.rec-chip{margin-left:auto;display:flex;align-items:center;gap:8px;flex:none;font:inherit;font-weight:800;font-size:13px;color:#fff;
+  background:rgba(255,255,255,.07);border:1.5px solid rgba(255,255,255,.2);border-radius:999px;padding:6px 12px;cursor:pointer;white-space:nowrap}
+.rec-chip::before{content:"";width:9px;height:9px;border-radius:50%;background:#ff5a5f;box-shadow:0 0 8px #ff5a5f}
+.rec-chip[aria-pressed="false"]{color:#a9b0d6}
+.rec-chip[aria-pressed="false"]::before{background:#5b6185;box-shadow:none}
 .brand-btn{display:flex;background:none;border:0;padding:4px;margin:-4px;border-radius:10px;cursor:pointer;flex:none}
 .brand-btn:hover .brand{opacity:1}
 
@@ -249,6 +254,7 @@ a:focus{outline:4px solid var(--sky);outline-offset:3px}
   .tvcard{width:min(760px,100%)}
   .tvcard .lead{font-size:13px;line-height:1.35}
   .phone-ok{font-size:13px}
+  .rec-chip{font-size:11px;padding:4px 9px;gap:6px}
   .btn{font-size:16px;padding:10px;box-shadow:0 4px 0 #b8363a}
   .btn.ghost{font-size:13px;padding:8px}
   .status{font-size:12px}
@@ -462,7 +468,7 @@ a:focus{outline:4px solid var(--sky);outline-offset:3px}
 <!-- 3. Pengaturan sebelum main (Mode Bebas / Mode Bocil) -->
 <section class="screen" id="menu" hidden>
   <div class="card tvcard">
-    <div class="card-head"><div class="phone-ok" id="sourceLabel">HP tersambung</div><button class="brand-btn" type="button" aria-label="Tentang aplikasi"><img class="brand" src="img/sandymind-white.png" alt="Sandy Mind"></button></div>
+    <div class="card-head"><div class="phone-ok" id="sourceLabel">HP tersambung</div><button class="rec-chip" id="recBtn" type="button" aria-pressed="true">Rekam video: Nyala</button><button class="brand-btn" type="button" aria-label="Tentang aplikasi"><img class="brand" src="img/sandymind-white.png" alt="Sandy Mind"></button></div>
     <h1 id="menuTitle">Mode <span>Bebas</span></h1>
     <p class="lead" id="menuLead">Seluruh badan bisa memecahkan balon. Balon emas +3. Kena bom, satu nyawa hilang. Sebelum mulai, berdirilah pas di dalam garis siluet.</p>
     <div class="settings">
@@ -643,7 +649,7 @@ const LOST_GRACE = 3;     // detik pemain boleh tidak terbaca sebelum permainan 
 const BOARD_KEY = 'balonPecahTop10'; // Mode Bebas; Mode Bocil punya papan sendiri per pilihan waktu
 const BOCIL_DURATIONS = [60, 120, 180];
 const SETTINGS_KEY = 'balonPecahSettings';
-const WEB_VERSION = '1.4.1';  // samakan dengan versionName di android-tv/app/build.gradle
+const WEB_VERSION = '1.4.2';  // samakan dengan versionName di android-tv/app/build.gradle
 const SHARE_URL = 'https://marionanavu-lab.github.io/balon-pecah/';
 const SAWERIA_URL = 'https://saweria.co/sandymind';
 const FEEDBACK_EMAIL = 'sandymind729@gmail.com';
@@ -679,6 +685,7 @@ const BODY_SEGS = [
 const state = {
   phase: 'start', // start | mode | pair | menu | position | countdown | play | over | result | board
   framing: 'full', weight: 60, showBody: false, // garis badan disembunyikan supaya tampilan lebih nyata
+  rec: 'auto', // rekam video: 'auto' (sesuai perangkat), 'low' (selalu ringan), 'off'
   mode: 'bebas', duration: 60, timeLeft: 60, lastTick: 0, // mode: 'bebas' (3 nyawa) | 'bocil' (tanpa nyawa, batas waktu)
   score: 0, lives: LIVES, elapsed: 0, popped: 0, escaped: 0, kcal: 0, kcalSincePop: 0, hurtUntil: -1,
   balloons: [], particles: [], texts: [], spawnIn: 0, paused: false, resumeIn: 0, lostFor: 0,
@@ -692,6 +699,7 @@ try {
   if (s.framing === 'full' || s.framing === 'half') state.framing = s.framing;
   if (typeof s.showBody === 'boolean') state.showBody = s.showBody;
   if (BOCIL_DURATIONS.includes(s.duration)) state.duration = s.duration;
+  if (['auto', 'low', 'off'].includes(s.rec)) state.rec = s.rec;
 } catch {}
 
 let W = 0, H = 0, DPR = 1, shake = 0, flash = 0;
@@ -723,6 +731,8 @@ function go(phase) {
   show('positionUi', phase === 'position');
   if (phase !== 'play') { show('pauseUi', false); show('lostWarn', false); }
   if (phase !== 'result' && replay.active) endReplay();
+  if (phase === 'play' && clip.tier) setRecGuard(clip.tier);
+  else if (!['play', 'over', 'result', 'countdown', 'position'].includes(phase)) setRecGuard(null);
   if (phase !== 'play' && phase !== 'over') show('ability', false);
   document.body.classList.toggle('playing', phase === 'play' || phase === 'over' || phase === 'countdown' || phase === 'position');
   renderInventory(false);
@@ -1137,7 +1147,10 @@ function renderSettings() {
   document.querySelectorAll('#framing .seg').forEach(s => s.setAttribute('aria-pressed', String(s.dataset.framing === state.framing)));
   document.querySelectorAll('#bodyLines .seg').forEach(s => s.setAttribute('aria-pressed', String((s.dataset.lines === 'on') === state.showBody)));
   document.querySelectorAll('#durations .seg').forEach(s => s.setAttribute('aria-pressed', String(+s.dataset.sec === state.duration)));
-  try { localStorage.setItem(SETTINGS_KEY, JSON.stringify({ weight: state.weight, framing: state.framing, showBody: state.showBody, duration: state.duration })); } catch {}
+  const rec = $('recBtn');
+  rec.setAttribute('aria-pressed', String(state.rec !== 'off'));
+  rec.textContent = state.rec === 'off' ? 'Rekam video: Mati' : clipTier() === 'low' ? 'Rekam video: Ringan' : 'Rekam video: Nyala';
+  try { localStorage.setItem(SETTINGS_KEY, JSON.stringify({ weight: state.weight, framing: state.framing, showBody: state.showBody, duration: state.duration, rec: state.rec })); } catch {}
 }
 document.querySelectorAll('[data-step]').forEach(b => b.addEventListener('click', () => {
   state.weight = clamp(state.weight + +b.dataset.step, 20, 200);
@@ -1146,6 +1159,11 @@ document.querySelectorAll('[data-step]').forEach(b => b.addEventListener('click'
 $('durations').addEventListener('click', e => {
   const b = e.target.closest('.seg'); if (!b) return;
   state.duration = +b.dataset.sec;
+  renderSettings();
+});
+$('recBtn').addEventListener('click', () => {
+  // Dinyalakan lagi setelah pernah dimatikan (mis. karena aplikasi sempat tertutup): mulai dari kualitas ringan
+  state.rec = state.rec !== 'off' ? 'off' : (state.recCrashed ? 'low' : 'auto');
   renderSettings();
 });
 $('bodyLines').addEventListener('click', e => {
@@ -2419,8 +2437,44 @@ function updateHandCursor(dt) {
    Selama bermain, layar (video kamera + kanvas game + skor + logo) disalin ke kanvas rekaman CLIP_FPS kali per detik
    dan disimpan sebagai JPEG (hemat memori); hanya CLIP_SECONDS detik terakhir yang dipertahankan. Setelah game selesai,
    gambar-gambar itu diputar ulang ke MediaRecorder (ditambah kartu penutup berisi skor) untuk menghasilkan video. */
-const CLIP_SECONDS = 10, CLIP_FPS = 24, CLIP_WIDTH = 960, CLIP_END_SECONDS = 1.5;
-const CLIP_JPEG_QUALITY = 0.85, CLIP_BITRATE = 5000000;
+const CLIP_SECONDS = 10, CLIP_END_SECONDS = 1.5, CLIP_JPEG_QUALITY = 0.85;
+// Kualitas menyesuaikan perangkat: TV dan perangkat bermemori kecil memakai versi ringan (versi penuh membuat
+// mesin halaman di TV kehabisan memori dan aplikasi tertutup paksa begitu permainan dimulai).
+const CLIP_TIERS = {
+  high: { width: 960, fps: 24, encoders: 2, bitrate: 5000000 },
+  low: { width: 640, fps: 12, encoders: 1, bitrate: 2500000 },
+};
+let CLIP_FPS = 24, CLIP_WIDTH = 960, CLIP_BITRATE = 5000000, CLIP_ENCODERS = 2;
+
+// Fungsi biasa (bukan const/let) karena sudah dipakai renderSettings() saat halaman dimuat
+function weakDevice() {
+  if (weakDevice.cache !== undefined) return weakDevice.cache;
+  let weak = false;
+  try {
+    const b = bridge();
+    if (b?.isTv?.()) weak = true;
+    const mb = +(b?.memoryMb?.() || 0);
+    if (mb && mb < 3500) weak = true;
+  } catch {}
+  if (navigator.deviceMemory && navigator.deviceMemory < 4) weak = true;
+  if ((navigator.hardwareConcurrency || 8) < 4) weak = true;
+  if (/\bTV\b|AFT[A-Z]|BRAVIA|SMART-?TV|GoogleTV|Android TV|CrKey/i.test(navigator.userAgent)) weak = true;
+  return (weakDevice.cache = weak);
+}
+function clipTier() { return state.rec === 'off' ? null : state.rec === 'low' || weakDevice() ? 'low' : 'high'; }
+function applyClipTier() {
+  clip.tier = clipTier();
+  const t = CLIP_TIERS[clip.tier];
+  if (t) ({ width: CLIP_WIDTH, fps: CLIP_FPS, bitrate: CLIP_BITRATE, encoders: CLIP_ENCODERS } = t);
+}
+
+// Penanda selama bermain sambil merekam. Bila halaman mati (crash), penanda masih ada saat dibuka lagi,
+// lalu kualitas rekaman diturunkan satu tingkat: penuh -> ringan -> mati.
+const REC_GUARD_KEY = 'balonPecahRecGuard';
+function setRecGuard(tier) {
+  try { tier ? localStorage.setItem(REC_GUARD_KEY, tier) : localStorage.removeItem(REC_GUARD_KEY); } catch {}
+}
+document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden') setRecGuard(null); });
 const clip = { frames: [], nextAt: 0, canvas: null, ctx: null, blob: null, busy: false, score: 0, gen: 0 };
 const decodeClipFrame = f => createImageBitmap(f.jpg);
 const clipLogo = new Image();
@@ -2428,6 +2482,8 @@ clipLogo.src = 'img/sandymind-white.png';
 
 function clipReset() {
   endReplay();
+  applyClipTier();
+  clip.failed = false;
   clip.gen++; // batalkan pembuatan video dan penyimpanan frame yang masih berjalan
   clip.frames = []; clip.blob = null; clip.busy = false; clip.nextAt = 0;
   renderClipButton();
@@ -2467,9 +2523,16 @@ function composeClipFrame() {
 
 // Kompresi JPEG dikerjakan di worker: toBlob di thread utama memakan ±20 ms per frame di HP dan membuat game tersendat,
 // sedangkan menyalin kanvas ke ImageBitmap hanya ±0,1 ms. Dua worker dipakai bergantian supaya tetap 24 fps
-// walau CPU juga sibuk dengan kamera dan deteksi pose.
-const CLIP_ENCODERS = 2;
-const clipEncoders = (() => {
+// walau CPU juga sibuk dengan kamera dan deteksi pose. Worker dibuat saat pertama kali dibutuhkan.
+let encoderPool = null;
+function clipEncoders() {
+  if (encoderPool === false || clip.noWorker) return null;
+  if (!encoderPool) encoderPool = createEncoders() || false;
+  if (!encoderPool) return null;
+  while (encoderPool.length < CLIP_ENCODERS) encoderPool.push(encoderPool.make());
+  return encoderPool.slice(0, CLIP_ENCODERS);
+}
+function createEncoders() {
   if (typeof OffscreenCanvas === 'undefined' || typeof Worker === 'undefined') return null;
   try {
     const src = `const oc = new OffscreenCanvas(1, 1), x = oc.getContext('2d');
@@ -2481,15 +2544,18 @@ const clipEncoders = (() => {
         catch { postMessage({ t, gen, jpg: null }); }
       };`;
     const url = URL.createObjectURL(new Blob([src], { type: 'text/javascript' }));
-    return Array.from({ length: CLIP_ENCODERS }, () => {
+    const make = () => {
       const w = new Worker(url);
       w.pending = 0;
       w.onmessage = e => { w.pending--; storeClipFrame(e.data.t, e.data.gen, e.data.jpg); };
       w.onerror = () => { clip.noWorker = true; };
       return w;
-    });
+    };
+    const pool = [make()];
+    pool.make = make;
+    return pool;
   } catch { return null; }
-})();
+}
 
 function storeClipFrame(t, gen, jpg) {
   if (!jpg || clip.gen !== gen) return;
@@ -2501,13 +2567,17 @@ function storeClipFrame(t, gen, jpg) {
 }
 
 function captureClipFrame(now) {
-  if (now < clip.nextAt || state.paused) return;
+  if (!clip.tier || clip.failed || now < clip.nextAt || state.paused) return;
+  try { captureClipFrameNow(now); } catch { clip.failed = true; } // rekaman gagal: game tetap jalan tanpa rekaman
+}
+function captureClipFrameNow(now) {
   // Jadwal tetap (bukan "sejak frame terakhir") supaya rata-rata tetap CLIP_FPS walau layar 60Hz tidak habis dibagi
   clip.nextAt = Math.max(clip.nextAt + 1000 / CLIP_FPS, now - 1000 / CLIP_FPS);
   composeClipFrame();
   const gen = clip.gen;
-  if (clipEncoders && !clip.noWorker) {
-    const w = clipEncoders.reduce((a, b) => (b.pending < a.pending ? b : a)); // worker yang paling longgar
+  const encoders = clipEncoders();
+  if (encoders) {
+    const w = encoders.reduce((a, b) => (b.pending < a.pending ? b : a)); // worker yang paling longgar
     if (w.pending > 3) { clip.skipped = (clip.skipped || 0) + 1; return; } // semua tertinggal: lewati frame ini
     w.pending++;
     createImageBitmap(clip.canvas).then(bmp => w.postMessage({ t: now, gen, bmp, q: CLIP_JPEG_QUALITY }, [bmp]))
@@ -2525,6 +2595,11 @@ function clipMimeType() {
 }
 
 async function buildClip() {
+  try { await buildClipNow(); }
+  catch { clip.busy = false; clip.blob = null; renderClipButton(); }
+  if (state.phase === 'result') setRecGuard(null);
+}
+async function buildClipNow() {
   const type = clipMimeType();
   if (!type || clip.frames.length < CLIP_FPS) { renderClipButton(); return; } // tidak didukung / permainan terlalu singkat
   clip.busy = true; clip.score = state.score;
@@ -2672,6 +2747,17 @@ function endReplay() {
 $('replay').addEventListener('click', shrinkReplay);
 
 let toastTimer = 0;
+(function checkRecCrash() {
+  let tier = null;
+  try { tier = localStorage.getItem(REC_GUARD_KEY); localStorage.removeItem(REC_GUARD_KEY); } catch {}
+  if (!tier) return;
+  state.recCrashed = true;
+  state.rec = tier === 'high' ? 'low' : 'off';
+  renderSettings();
+  setTimeout(() => showToast(state.rec === 'off'
+    ? 'Aplikasi sempat tertutup saat merekam. Rekam video dimatikan (bisa dinyalakan lagi di menu).'
+    : 'Aplikasi sempat tertutup saat merekam. Rekam video diubah ke versi ringan.'), 800);
+})();
 function showToast(msg) {
   const t = $('toast');
   t.textContent = msg; t.hidden = false;
